@@ -143,6 +143,7 @@ func Run(c *cobra.Command, names []string) {
 	unblockHTTPAPI, _ := c.PersistentFlags().GetBool("http-api-periodic-polls")
 	apiToken, _ := c.PersistentFlags().GetString("http-api-token")
 	healthCheck, _ := c.PersistentFlags().GetBool("health-check")
+	port, _ := c.PersistentFlags().GetString("port")
 
 	if healthCheck {
 		// health check should not have pid 1
@@ -175,6 +176,9 @@ func Run(c *cobra.Command, names []string) {
 		logNotifyExit(err)
 	}
 
+	// Run on startup
+	runUpdatesWithNotifications(filter)
+
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
 	updateLock := make(chan bool, 1)
 	updateLock <- true
@@ -199,7 +203,7 @@ func Run(c *cobra.Command, names []string) {
 		httpAPI.RegisterHandler(metricsHandler.Path, metricsHandler.Handle)
 	}
 
-	if err := httpAPI.Start(enableUpdateAPI && !unblockHTTPAPI); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := httpAPI.Start(enableUpdateAPI && !unblockHTTPAPI, port); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("failed to start API", err)
 	}
 

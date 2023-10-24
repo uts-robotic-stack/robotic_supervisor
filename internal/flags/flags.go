@@ -211,6 +211,11 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 		"",
 		envBool("WATCHTOWER_LABEL_TAKE_PRECEDENCE"),
 		"Label applied to containers take precedence over arguments")
+
+	flags.String(
+		"port",
+		envString("WATCHTOWER_UPDATE_PORT"),
+		"Port to for update api to connect to")
 }
 
 // RegisterNotificationFlags that are used by watchtower to send notifications

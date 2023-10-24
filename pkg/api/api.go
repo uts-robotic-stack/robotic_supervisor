@@ -50,7 +50,7 @@ func (api *API) RegisterHandler(path string, handler http.Handler) {
 }
 
 // Start the API and serve over HTTP. Requires an API Token to be set.
-func (api *API) Start(block bool) error {
+func (api *API) Start(block bool, port string) error {
 
 	if !api.hasHandlers {
 		log.Debug("Watchtower HTTP API skipped.")
@@ -62,15 +62,15 @@ func (api *API) Start(block bool) error {
 	}
 
 	if block {
-		runHTTPServer()
+		runHTTPServer(port)
 	} else {
 		go func() {
-			runHTTPServer()
+			runHTTPServer(port)
 		}()
 	}
 	return nil
 }
 
-func runHTTPServer() {
+func runHTTPServer(port string) {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
