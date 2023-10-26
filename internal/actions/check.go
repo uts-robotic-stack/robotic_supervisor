@@ -81,3 +81,7 @@ func cleanupExcessWatchtowers(containers []types.Container, client container.Cli
 
 	return nil
 }
+
+func CheckUpdatesReady() bool {
+	return true
+}

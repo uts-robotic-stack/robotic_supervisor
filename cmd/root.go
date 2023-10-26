@@ -176,7 +176,7 @@ func Run(c *cobra.Command, names []string) {
 		logNotifyExit(err)
 	}
 
-	// Run on startup
+	// Run update once startup to check and download updates from the cloud
 	runUpdatesWithNotifications(filter)
 
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
@@ -206,6 +206,8 @@ func Run(c *cobra.Command, names []string) {
 	if err := httpAPI.Start(enableUpdateAPI && !unblockHTTPAPI, port); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("failed to start API", err)
 	}
+
+	runMonitorUSBPorts(c, filter, filterDesc, updateLock)
 
 	if err := runUpgradesOnSchedule(c, filter, filterDesc, updateLock); err != nil {
 		log.Error(err)
@@ -372,7 +374,8 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		RollingRestart:  rollingRestart,
 		LabelPrecedence: labelPrecedence,
 	}
-	result, err := actions.Update(client, updateParams)
+	// Run and check for updated on the cloud. Do not attempt to load local image
+	result, err := actions.Update(client, updateParams, false)
 	if err != nil {
 		log.Error(err)
 	}
@@ -384,4 +387,27 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		"Failed":  metricResults.Failed,
 	}).Info("Session done")
 	return metricResults
+}
+
+func runMonitorUSBPorts(c *cobra.Command, filter t.Filter, filtering string, lock chan bool) error {
+	if lock == nil {
+		lock = make(chan bool, 1)
+		lock <- true
+	}
+
+	scheduler := cron.New()
+	scheduler.AddFunc("* * * * * *", func() {
+		select {
+		case v := <-lock:
+			defer func() { lock <- v }()
+			// Compare
+			actions.CheckUpdatesReady()
+		default:
+			// Update was skipped
+			log.Debug("Skipped another update already running.")
+		}
+	})
+
+	scheduler.Start()
+	return nil
 }

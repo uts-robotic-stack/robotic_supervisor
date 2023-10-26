@@ -20,7 +20,10 @@ require (
 	golang.org/x/net v0.17.0
 )
 
-require github.com/docker/distribution v2.8.3+incompatible // indirect
+require (
+	github.com/docker/distribution v2.8.3+incompatible // indirect
+	github.com/google/gousb v1.1.2 // indirect
+)
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect

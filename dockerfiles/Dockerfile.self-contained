@@ -5,7 +5,7 @@
 FROM golang:alpine as builder
 
 # use version (for example "v0.3.3") or "main"
-ARG WATCHTOWER_VERSION=main
+ARG WATCHTOWER_VERSION=develop
 
 RUN apk add --no-cache \
     alpine-sdk \
@@ -13,7 +13,7 @@ RUN apk add --no-cache \
     git \
     tzdata
 
-RUN git clone --branch "${WATCHTOWER_VERSION}" https://github.com/containrrr/watchtower.git
+RUN git clone --branch "${WATCHTOWER_VERSION}" https://github.com/dkhoanguyen/watchtower.git
 
 RUN \
   cd watchtower && \

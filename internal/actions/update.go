@@ -16,7 +16,7 @@ import (
 // used to start those containers have been updated. If a change is detected in
 // any of the images, the associated containers are stopped and restarted with
 // the new image.
-func Update(client container.Client, params types.UpdateParams) (types.Report, error) {
+func Update(client container.Client, params types.UpdateParams, load_local_image bool) (types.Report, error) {
 	log.Debug("Checking containers for updated images")
 	progress := &session.Progress{}
 	staleCount := 0
@@ -33,7 +33,7 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 	staleCheckFailed := 0
 
 	for i, targetContainer := range containers {
-		stale, newestImage, err := client.IsContainerStale(targetContainer, params)
+		stale, newestImage, err := client.IsContainerStale(targetContainer, params, load_local_image)
 		shouldUpdate := stale && !params.NoRestart && !targetContainer.IsMonitorOnly(params)
 		if err == nil && shouldUpdate {
 			// Check to make sure we have all the necessary information for recreating the container

@@ -2,8 +2,12 @@ package container
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	sdkClient "github.com/docker/docker/client"
+	"github.com/google/gousb"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 
@@ -30,10 +35,11 @@ type Client interface {
 	StopContainer(t.Container, time.Duration) error
 	StartContainer(t.Container) (t.ContainerID, error)
 	RenameContainer(t.Container, string) error
-	IsContainerStale(t.Container, t.UpdateParams) (stale bool, latestImage t.ImageID, err error)
+	IsContainerStale(t.Container, t.UpdateParams, bool) (stale bool, latestImage t.ImageID, err error)
 	ExecuteCommand(containerID t.ContainerID, command string, timeout int) (SkipUpdate bool, err error)
 	RemoveImageByID(t.ImageID) error
 	WarnOnHeadPullFailed(container t.Container) bool
+	LoadImageFromUSB(string) error
 }
 
 // NewClient returns a new Client instance which can be used to interact with
@@ -317,13 +323,18 @@ func (client dockerClient) RenameContainer(c t.Container, newName string) error 
 	return client.api.ContainerRename(bg, string(c.ID()), newName)
 }
 
-func (client dockerClient) IsContainerStale(container t.Container, params t.UpdateParams) (stale bool, latestImage t.ImageID, err error) {
+func (client dockerClient) IsContainerStale(container t.Container, params t.UpdateParams, load_local_image bool) (stale bool, latestImage t.ImageID, err error) {
 	ctx := context.Background()
-
-	if container.IsNoPull(params) {
-		log.Debugf("Skipping image pull.")
-	} else if err := client.PullImage(ctx, container); err != nil {
-		return false, container.SafeImageID(), err
+	if !load_local_image {
+		if container.IsNoPull(params) {
+			log.Debugf("Skipping image pull.")
+		} else if err := client.PullImage(ctx, container); err != nil {
+			return false, container.SafeImageID(), err
+		}
+	} else {
+		if err := client.LoadImageFromUSB("robotics_base.tar.gz"); err != nil {
+			return false, container.SafeImageID(), err
+		}
 	}
 
 	return client.HasNewImage(ctx, container)
@@ -556,4 +567,72 @@ func (client dockerClient) waitForStopOrTimeout(c t.Container, waitTime time.Dur
 		}
 		time.Sleep(1 * time.Second)
 	}
+}
+
+func (client dockerClient) LoadImageFromUSB(path string) error {
+	ctx := gousb.NewContext()
+	defer ctx.Close()
+
+	// Open the first found USB device
+	devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
+		return desc.Class == gousb.ClassMassStorage || desc.Class == gousb.ClassPerInterface
+	})
+	if err != nil {
+		log.Fatal("Error opening device: ", err)
+	}
+	defer func() {
+		for _, d := range devs {
+			d.Close()
+		}
+	}()
+	if len(devs) == 0 {
+		return errors.New("NO USB DEVICE FOUND")
+	}
+	pID := devs[0].Desc.Product.String()
+	vID := devs[0].Desc.Vendor.String()
+
+	mountPath, err := getUSBMountPath(vID, pID)
+	if err != nil {
+		log.Error("Error obtaining mount path for USB: ", err)
+		return err
+	}
+	// Obtain mount
+	// Replace with the path to your Docker image on the USB device
+	imageData, err := os.ReadFile(mountPath + path)
+	if err != nil {
+		log.Error("Error reading Docker image from USB: ", err)
+		return err
+	}
+
+	responseBody, err := client.api.ImageLoad(context.Background(), bytes.NewReader(imageData), false)
+	if err != nil {
+		log.Error("Error loading Docker image: ", err)
+		return err
+	}
+	defer responseBody.Body.Close()
+
+	log.Info("Docker image loaded successfully.")
+
+	return nil
+}
+
+func getUSBMountPath(vendorID, productID string) (string, error) {
+	usbDevicesPath := "/dev/disk/by-id/"
+	files, err := ioutil.ReadDir(usbDevicesPath)
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range files {
+		if strings.Contains(file.Name(), vendorID) && strings.Contains(file.Name(), productID) {
+			symlinkPath := filepath.Join(usbDevicesPath, file.Name())
+			realPath, err := filepath.EvalSymlinks(symlinkPath)
+			if err != nil {
+				return "", err
+			}
+			return realPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("USB device not found")
 }
