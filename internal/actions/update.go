@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"errors"
 
 	"github.com/containrrr/watchtower/internal/util"
@@ -92,6 +93,30 @@ func Update(client container.Client, params types.UpdateParams, load_local_image
 		lifecycle.ExecutePostChecks(client, params)
 	}
 	return progress.Report(), nil
+}
+
+func DownloadUpdate(client container.Client, params types.UpdateParams) error {
+	log.Debug("Checking containers for updated images")
+	ctx := context.Background()
+
+	containers, err := client.ListContainers(params.Filter)
+	if err != nil {
+		return err
+	}
+
+	for _, targetContainer := range containers {
+		if err := client.PullImage(ctx, targetContainer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func LoadUpdate(client container.Client, params types.UpdateParams) error {
+	if err := client.LoadImageFromUSB("robotics_base.tar"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func performRollingRestart(containers []types.Container, client container.Client, params types.UpdateParams) map[types.ContainerID]error {

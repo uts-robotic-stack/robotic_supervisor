@@ -40,6 +40,7 @@ type Client interface {
 	RemoveImageByID(t.ImageID) error
 	WarnOnHeadPullFailed(container t.Container) bool
 	LoadImageFromUSB(string) error
+	PullImage(context.Context, t.Container) error
 }
 
 // NewClient returns a new Client instance which can be used to interact with
@@ -359,7 +360,8 @@ func (client dockerClient) HasNewImage(ctx context.Context, container t.Containe
 	return true, newImageID, nil
 }
 
-// PullImage pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed
+//	pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed
+//
 // to match the one that the registry reports via a HEAD request
 func (client dockerClient) PullImage(ctx context.Context, container t.Container) error {
 	containerName := container.Name()

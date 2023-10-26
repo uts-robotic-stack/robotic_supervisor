@@ -176,8 +176,9 @@ func Run(c *cobra.Command, names []string) {
 		logNotifyExit(err)
 	}
 
-	// Run update once startup to check and download updates from the cloud
-	runUpdatesWithNotifications(filter)
+	// // Run update once startup to check and download updates from the cloud
+	// runUpdatesWithNotifications(filter)
+	runDownloadUpdates(filter)
 
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
 	updateLock := make(chan bool, 1)
@@ -328,8 +329,10 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 			select {
 			case v := <-lock:
 				defer func() { lock <- v }()
-				metric := runUpdatesWithNotifications(filter)
-				metrics.RegisterScan(metric)
+				// Pull new images on schedule
+				runDownloadUpdates(filter)
+				// metric := runUpdatesWithNotifications(filter)
+				// metrics.RegisterScan(metric)
 			default:
 				// Update was skipped
 				metrics.RegisterScan(nil)
@@ -360,6 +363,23 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	log.Info("Waiting for running update to be finished...")
 	<-lock
 	return nil
+}
+
+func runDownloadUpdates(filter t.Filter) {
+	updateParams := t.UpdateParams{
+		Filter:          filter,
+		Cleanup:         cleanup,
+		NoRestart:       noRestart,
+		Timeout:         timeout,
+		MonitorOnly:     monitorOnly,
+		LifecycleHooks:  lifecycleHooks,
+		RollingRestart:  rollingRestart,
+		LabelPrecedence: labelPrecedence,
+	}
+	err := actions.DownloadUpdate(client, updateParams)
+	if err != nil {
+		log.Error(err)
+	}
 }
 
 func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
@@ -401,7 +421,26 @@ func runMonitorUSBPorts(c *cobra.Command, filter t.Filter, filtering string, loc
 		case v := <-lock:
 			defer func() { lock <- v }()
 			// Compare
-			actions.CheckUpdatesReady()
+			updateParams := t.UpdateParams{
+				Filter:          filter,
+				Cleanup:         cleanup,
+				NoRestart:       noRestart,
+				Timeout:         timeout,
+				MonitorOnly:     monitorOnly,
+				LifecycleHooks:  lifecycleHooks,
+				RollingRestart:  rollingRestart,
+				LabelPrecedence: labelPrecedence,
+			}
+			result, err := actions.Update(client, updateParams, false)
+			if err != nil {
+				log.Error(err)
+			}
+			metricResults := metrics.NewMetric(result)
+			notifications.LocalLog.WithFields(log.Fields{
+				"Scanned": metricResults.Scanned,
+				"Updated": metricResults.Updated,
+				"Failed":  metricResults.Failed,
+			}).Info("Session done")
 		default:
 			// Update was skipped
 			log.Debug("Skipped another update already running.")
