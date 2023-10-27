@@ -374,6 +374,8 @@ func runCheckForUpdates(filter t.Filter) {
 		if err != nil {
 			log.Error(err)
 		}
+	} else if !updateAvailable {
+		log.Info("Updates not available from upstream")
 	} else {
 		log.Info("Unable to check for update from upstream registry")
 	}
