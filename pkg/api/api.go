@@ -72,5 +72,5 @@ func (api *API) Start(block bool, port string) error {
 }
 
 func runHTTPServer(port string) {
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

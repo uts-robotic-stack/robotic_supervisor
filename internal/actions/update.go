@@ -1,7 +1,6 @@
 package actions
 
 import (
-	"context"
 	"errors"
 
 	"github.com/containrrr/watchtower/internal/util"
@@ -17,7 +16,7 @@ import (
 // used to start those containers have been updated. If a change is detected in
 // any of the images, the associated containers are stopped and restarted with
 // the new image.
-func Update(client container.Client, params types.UpdateParams, load_local_image bool) (types.Report, error) {
+func Update(client container.Client, params types.UpdateParams) (types.Report, error) {
 	log.Debug("Checking containers for updated images")
 	progress := &session.Progress{}
 	staleCount := 0
@@ -34,7 +33,7 @@ func Update(client container.Client, params types.UpdateParams, load_local_image
 	staleCheckFailed := 0
 
 	for i, targetContainer := range containers {
-		stale, newestImage, err := client.IsContainerStale(targetContainer, params, load_local_image)
+		stale, newestImage, err := client.IsContainerStale(targetContainer, params)
 		shouldUpdate := stale && !params.NoRestart && !targetContainer.IsMonitorOnly(params)
 		if err == nil && shouldUpdate {
 			// Check to make sure we have all the necessary information for recreating the container
@@ -95,23 +94,37 @@ func Update(client container.Client, params types.UpdateParams, load_local_image
 	return progress.Report(), nil
 }
 
+func CheckForNewUpdateFromRegistry(client container.Client, params types.UpdateParams) (bool, error) {
+	log.Debug("Checking for updated images from registry")
+	containers, err := client.ListContainers(params.Filter)
+	if err != nil {
+		return false, err
+	}
+
+	for _, targetContainer := range containers {
+		if match, err := client.CheckImageDigest(targetContainer); err != nil {
+			return !match, err
+		}
+	}
+	return false, nil
+}
+
 func DownloadUpdate(client container.Client, params types.UpdateParams) error {
 	log.Debug("Checking containers for updated images")
-	ctx := context.Background()
-
 	containers, err := client.ListContainers(params.Filter)
 	if err != nil {
 		return err
 	}
 
 	for _, targetContainer := range containers {
-		if err := client.PullImage(ctx, targetContainer); err != nil {
+		if err := client.PullImage(targetContainer); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// TODO
 func LoadUpdate(client container.Client, params types.UpdateParams) error {
 	if err := client.LoadImageFromUSB("robotics_base.tar"); err != nil {
 		return err

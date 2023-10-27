@@ -176,9 +176,8 @@ func Run(c *cobra.Command, names []string) {
 		logNotifyExit(err)
 	}
 
-	// // Run update once startup to check and download updates from the cloud
-	// runUpdatesWithNotifications(filter)
-	runDownloadUpdates(filter)
+	// Run update once startup to check and download updates from the cloud
+	runCheckForUpdates(filter)
 
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
 	updateLock := make(chan bool, 1)
@@ -208,9 +207,7 @@ func Run(c *cobra.Command, names []string) {
 		log.Error("failed to start API", err)
 	}
 
-	runMonitorUSBPorts(c, filter, filterDesc, updateLock)
-
-	if err := runUpgradesOnSchedule(c, filter, filterDesc, updateLock); err != nil {
+	if err := runChecksOnSchedule(c, filter, filterDesc, updateLock); err != nil {
 		log.Error(err)
 	}
 
@@ -303,7 +300,7 @@ func writeStartupMessage(c *cobra.Command, sched time.Time, filtering string) {
 
 	if enableUpdateAPI {
 		// TODO: make listen port configurable
-		startupLog.Info("The HTTP API is enabled at :8080.")
+		startupLog.Info("The HTTP API is enabled at :9090.")
 	}
 
 	if !noStartupMessage {
@@ -316,7 +313,7 @@ func writeStartupMessage(c *cobra.Command, sched time.Time, filtering string) {
 	}
 }
 
-func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lock chan bool) error {
+func runChecksOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lock chan bool) error {
 	if lock == nil {
 		lock = make(chan bool, 1)
 		lock <- true
@@ -326,23 +323,10 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	err := scheduler.AddFunc(
 		scheduleSpec,
 		func() {
-			select {
-			case v := <-lock:
-				defer func() { lock <- v }()
-				// Pull new images on schedule
-				runDownloadUpdates(filter)
-				// metric := runUpdatesWithNotifications(filter)
-				// metrics.RegisterScan(metric)
-			default:
-				// Update was skipped
-				metrics.RegisterScan(nil)
-				log.Debug("Skipped another update already running.")
-			}
-
-			nextRuns := scheduler.Entries()
-			if len(nextRuns) > 0 {
-				log.Debug("Scheduled next run: " + nextRuns[0].Next.String())
-			}
+			v := <-lock
+			defer func() { lock <- v }()
+			// Check for updates from registry and from local devices
+			runCheckForUpdates(filter)
 		})
 
 	if err != nil {
@@ -365,7 +349,7 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	return nil
 }
 
-func runDownloadUpdates(filter t.Filter) {
+func runCheckForUpdates(filter t.Filter) {
 	updateParams := t.UpdateParams{
 		Filter:          filter,
 		Cleanup:         cleanup,
@@ -376,9 +360,17 @@ func runDownloadUpdates(filter t.Filter) {
 		RollingRestart:  rollingRestart,
 		LabelPrecedence: labelPrecedence,
 	}
-	err := actions.DownloadUpdate(client, updateParams)
-	if err != nil {
+	// Check for updates from registry first
+	if updateAvailable, err := actions.CheckForNewUpdateFromRegistry(client, updateParams); err != nil {
 		log.Error(err)
+	} else if updateAvailable {
+		log.Info("Updates available from registry. Attempting to pull updates now...")
+		err := actions.DownloadUpdate(client, updateParams)
+		if err != nil {
+			log.Error(err)
+		}
+	} else {
+		log.Info("Unable to check for update from upstream registry")
 	}
 }
 
@@ -395,7 +387,8 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		LabelPrecedence: labelPrecedence,
 	}
 	// Run and check for updated on the cloud. Do not attempt to load local image
-	result, err := actions.Update(client, updateParams, false)
+	log.Info("Update requested. Updating...")
+	result, err := actions.Update(client, updateParams)
 	if err != nil {
 		log.Error(err)
 	}
@@ -407,46 +400,4 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		"Failed":  metricResults.Failed,
 	}).Info("Session done")
 	return metricResults
-}
-
-func runMonitorUSBPorts(c *cobra.Command, filter t.Filter, filtering string, lock chan bool) error {
-	if lock == nil {
-		lock = make(chan bool, 1)
-		lock <- true
-	}
-
-	scheduler := cron.New()
-	scheduler.AddFunc("* * * * * *", func() {
-		select {
-		case v := <-lock:
-			defer func() { lock <- v }()
-			// Compare
-			updateParams := t.UpdateParams{
-				Filter:          filter,
-				Cleanup:         cleanup,
-				NoRestart:       noRestart,
-				Timeout:         timeout,
-				MonitorOnly:     monitorOnly,
-				LifecycleHooks:  lifecycleHooks,
-				RollingRestart:  rollingRestart,
-				LabelPrecedence: labelPrecedence,
-			}
-			result, err := actions.Update(client, updateParams, false)
-			if err != nil {
-				log.Error(err)
-			}
-			metricResults := metrics.NewMetric(result)
-			notifications.LocalLog.WithFields(log.Fields{
-				"Scanned": metricResults.Scanned,
-				"Updated": metricResults.Updated,
-				"Failed":  metricResults.Failed,
-			}).Info("Session done")
-		default:
-			// Update was skipped
-			log.Debug("Skipped another update already running.")
-		}
-	})
-
-	scheduler.Start()
-	return nil
 }

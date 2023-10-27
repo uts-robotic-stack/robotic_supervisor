@@ -35,12 +35,14 @@ type Client interface {
 	StopContainer(t.Container, time.Duration) error
 	StartContainer(t.Container) (t.ContainerID, error)
 	RenameContainer(t.Container, string) error
-	IsContainerStale(t.Container, t.UpdateParams, bool) (stale bool, latestImage t.ImageID, err error)
+	IsContainerStale(t.Container, t.UpdateParams) (stale bool, latestImage t.ImageID, err error)
 	ExecuteCommand(containerID t.ContainerID, command string, timeout int) (SkipUpdate bool, err error)
 	RemoveImageByID(t.ImageID) error
 	WarnOnHeadPullFailed(container t.Container) bool
 	LoadImageFromUSB(string) error
-	PullImage(context.Context, t.Container) error
+	CheckDigestAndPullImage(t.Container) error
+	CheckImageDigest(t.Container) (bool, error)
+	PullImage(t.Container) error
 }
 
 // NewClient returns a new Client instance which can be used to interact with
@@ -324,26 +326,19 @@ func (client dockerClient) RenameContainer(c t.Container, newName string) error 
 	return client.api.ContainerRename(bg, string(c.ID()), newName)
 }
 
-func (client dockerClient) IsContainerStale(container t.Container, params t.UpdateParams, load_local_image bool) (stale bool, latestImage t.ImageID, err error) {
-	ctx := context.Background()
-	if !load_local_image {
-		if container.IsNoPull(params) {
-			log.Debugf("Skipping image pull.")
-		} else if err := client.PullImage(ctx, container); err != nil {
-			return false, container.SafeImageID(), err
-		}
-	} else {
-		if err := client.LoadImageFromUSB("robotics_base.tar.gz"); err != nil {
-			return false, container.SafeImageID(), err
-		}
+func (client dockerClient) IsContainerStale(container t.Container, params t.UpdateParams) (stale bool, latestImage t.ImageID, err error) {
+	if container.IsNoPull(params) {
+		log.Debugf("Skipping image pull.")
+	} else if err := client.CheckDigestAndPullImage(container); err != nil {
+		return false, container.SafeImageID(), err
 	}
-
-	return client.HasNewImage(ctx, container)
+	return client.HasNewImage(container)
 }
 
-func (client dockerClient) HasNewImage(ctx context.Context, container t.Container) (hasNew bool, latestImage t.ImageID, err error) {
+func (client dockerClient) HasNewImage(container t.Container) (hasNew bool, latestImage t.ImageID, err error) {
 	currentImageID := t.ImageID(container.ContainerInfo().ContainerJSONBase.Image)
 	imageName := container.ImageName()
+	ctx := context.Background()
 
 	newImageInfo, _, err := client.api.ImageInspectWithRaw(ctx, imageName)
 	if err != nil {
@@ -363,9 +358,10 @@ func (client dockerClient) HasNewImage(ctx context.Context, container t.Containe
 //	pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed
 //
 // to match the one that the registry reports via a HEAD request
-func (client dockerClient) PullImage(ctx context.Context, container t.Container) error {
+func (client dockerClient) CheckDigestAndPullImage(container t.Container) error {
 	containerName := container.Name()
 	imageName := container.ImageName()
+	ctx := context.Background()
 
 	fields := log.Fields{
 		"image":     imageName,
@@ -637,4 +633,71 @@ func getUSBMountPath(vendorID, productID string) (string, error) {
 	}
 
 	return "", fmt.Errorf("USB device not found")
+}
+
+func (client dockerClient) CheckImageDigest(container t.Container) (bool, error) {
+	containerName := container.Name()
+	imageName := container.ImageName()
+
+	fields := log.Fields{
+		"image":     imageName,
+		"container": containerName,
+	}
+
+	log.WithFields(fields).Debugf("Trying to load authentication credentials.")
+	opts, err := registry.GetPullOptions(imageName)
+	if err != nil {
+		log.Debugf("Error loading authentication credentials %s", err)
+		return false, err
+	}
+	if opts.RegistryAuth != "" {
+		log.Debug("Credentials loaded")
+	}
+
+	log.WithFields(fields).Debugf("Checking if pull is needed")
+
+	if match, err := digest.CompareDigest(container, opts.RegistryAuth); err != nil {
+		headLevel := log.DebugLevel
+		log.WithFields(fields).Logf(headLevel, "Could not do a head request for %q, falling back to regular pull.", imageName)
+		log.WithFields(fields).Log(headLevel, "Reason: ", err)
+		return false, err
+	} else if match {
+		log.Debug("No pull needed. Skipping image.")
+		return true, nil
+	} else {
+		log.Debug("Digests did not match, doing a pull.")
+		return false, nil
+	}
+}
+
+func (client dockerClient) PullImage(container t.Container) error {
+	containerName := container.Name()
+	imageName := container.ImageName()
+	ctx := context.Background()
+
+	fields := log.Fields{
+		"image":     imageName,
+		"container": containerName,
+	}
+
+	log.WithFields(fields).Debugf("Trying to load authentication credentials.")
+	opts, err := registry.GetPullOptions(imageName)
+	if err != nil {
+		log.Debugf("Error loading authentication credentials %s", err)
+		return err
+	}
+
+	response, err := client.api.ImagePull(ctx, imageName, opts)
+	if err != nil {
+		log.Debugf("Error pulling image %s, %s", imageName, err)
+		return err
+	}
+
+	defer response.Close()
+	// the pull request will be aborted prematurely unless the response is read
+	if _, err = io.ReadAll(response); err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
 }
