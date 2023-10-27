@@ -144,6 +144,7 @@ func Run(c *cobra.Command, names []string) {
 	apiToken, _ := c.PersistentFlags().GetString("http-api-token")
 	healthCheck, _ := c.PersistentFlags().GetBool("health-check")
 	port, _ := c.PersistentFlags().GetString("port")
+	updateOnStartup, _ := c.PersistentFlags().GetBool("update-on-startup")
 
 	if healthCheck {
 		// health check should not have pid 1
@@ -177,7 +178,11 @@ func Run(c *cobra.Command, names []string) {
 	}
 
 	// Run update once startup to check and download updates from the cloud
-	runCheckForUpdates(filter)
+	if updateOnStartup {
+		runCheckForUpdates(filter)
+		metric := runUpdatesWithNotifications(filter)
+		metrics.RegisterScan(metric)
+	}
 
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
 	updateLock := make(chan bool, 1)
