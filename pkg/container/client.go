@@ -33,7 +33,8 @@ type Client interface {
 	ListContainers(t.Filter) ([]t.Container, error)
 	GetContainer(containerID t.ContainerID) (t.Container, error)
 	StopContainer(t.Container, time.Duration) error
-	StartContainer(t.Container) (t.ContainerID, error)
+	StartContainerWithExistingConfig(t.Container) (t.ContainerID, error)
+	StartContainer(string, container.Config, container.HostConfig, network.NetworkingConfig) (t.ContainerID, error)
 	RenameContainer(t.Container, string) error
 	IsContainerStale(t.Container, t.UpdateParams) (stale bool, latestImage t.ImageID, err error)
 	ExecuteCommand(containerID t.ContainerID, command string, timeout int) (SkipUpdate bool, err error)
@@ -255,7 +256,7 @@ func (client dockerClient) GetNetworkConfig(c t.Container) *network.NetworkingCo
 	return config
 }
 
-func (client dockerClient) StartContainer(c t.Container) (t.ContainerID, error) {
+func (client dockerClient) StartContainerWithExistingConfig(c t.Container) (t.ContainerID, error) {
 	bg := context.Background()
 	config := c.GetCreateConfig()
 	hostConfig := c.GetCreateHostConfig()
@@ -307,6 +308,39 @@ func (client dockerClient) StartContainer(c t.Container) (t.ContainerID, error) 
 
 	return createdContainerID, client.doStartContainer(bg, c, createdContainer)
 
+}
+
+func (client dockerClient) StartContainer(name string, config container.Config,
+	hostConfig container.HostConfig, networkConfig network.NetworkingConfig) (t.ContainerID, error) {
+	bg := context.Background()
+
+	log.Debugf("Creating %s", name)
+	createdContainer, err := client.api.ContainerCreate(bg, &config, &hostConfig, &networkConfig, nil, name)
+	if err != nil {
+		return "", err
+	}
+
+	if !(hostConfig.NetworkMode.IsHost()) {
+
+		for k := range networkConfig.EndpointsConfig {
+			err = client.api.NetworkDisconnect(bg, k, createdContainer.ID, true)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		for k, v := range networkConfig.EndpointsConfig {
+			err = client.api.NetworkConnect(bg, k, createdContainer.ID, v)
+			if err != nil {
+				return "", err
+			}
+		}
+
+	}
+
+	createdContainerID := t.ContainerID(createdContainer.ID)
+	c, _ := client.GetContainer(createdContainerID)
+	return createdContainerID, client.doStartContainer(bg, c, createdContainer)
 }
 
 func (client dockerClient) doStartContainer(bg context.Context, c t.Container, creation container.CreateResponse) error {

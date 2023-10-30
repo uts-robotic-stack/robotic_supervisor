@@ -84,7 +84,7 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 	} else {
 		failedStop, stoppedImages := stopContainersInReversedOrder(containersToUpdate, client, params)
 		progress.UpdateFailed(failedStop)
-		failedStart := restartContainersInSortedOrder(containersToUpdate, client, params, stoppedImages)
+		failedStart := reStartContainerWithExistingConfigsInSortedOrder(containersToUpdate, client, params, stoppedImages)
 		progress.UpdateFailed(failedStart)
 	}
 
@@ -210,7 +210,7 @@ func stopStaleContainer(container types.Container, client container.Client, para
 	return nil
 }
 
-func restartContainersInSortedOrder(containers []types.Container, client container.Client, params types.UpdateParams, stoppedImages map[types.ImageID]bool) map[types.ContainerID]error {
+func reStartContainerWithExistingConfigsInSortedOrder(containers []types.Container, client container.Client, params types.UpdateParams, stoppedImages map[types.ImageID]bool) map[types.ContainerID]error {
 	cleanupImageIDs := make(map[types.ImageID]bool, len(containers))
 	failed := make(map[types.ContainerID]error, len(containers))
 
@@ -259,7 +259,7 @@ func restartStaleContainer(container types.Container, client container.Client, p
 	}
 
 	if !params.NoRestart {
-		if newContainerID, err := client.StartContainer(container); err != nil {
+		if newContainerID, err := client.StartContainerWithExistingConfig(container); err != nil {
 			log.Error(err)
 			return err
 		} else if container.ToRestart() && params.LifecycleHooks {

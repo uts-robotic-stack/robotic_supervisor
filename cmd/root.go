@@ -15,6 +15,7 @@ import (
 	"github.com/containrrr/watchtower/internal/flags"
 	"github.com/containrrr/watchtower/internal/meta"
 	"github.com/containrrr/watchtower/pkg/api"
+	containerHandler "github.com/containrrr/watchtower/pkg/api/container"
 	apiMetrics "github.com/containrrr/watchtower/pkg/api/metrics"
 	"github.com/containrrr/watchtower/pkg/api/update"
 	"github.com/containrrr/watchtower/pkg/container"
@@ -202,6 +203,11 @@ func Run(c *cobra.Command, names []string) {
 			writeStartupMessage(c, time.Time{}, filterDesc)
 		}
 	}
+
+	containerHandler := containerHandler.New(func(servicesConfig map[string]interface{}) {
+		runServicesHandle(servicesConfig)
+	}, updateLock)
+	httpAPI.RegisterFunc(containerHandler.Path, containerHandler.Handle)
 
 	if enableMetricsAPI {
 		metricsHandler := apiMetrics.New()
@@ -407,4 +413,31 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		"Failed":  metricResults.Failed,
 	}).Info("Session done")
 	return metricResults
+}
+
+func runServicesHandle(servicesConfig map[string]interface{}) {
+	log.Info("Running service handle")
+	services := []container.Service{}
+	rawServiceData := servicesConfig["services"].(map[string]interface{})
+
+	// Extract services from the raw data
+	for name, config := range rawServiceData {
+		service := container.MakeService(config.(map[string]interface{}), name)
+		services = append(services, service)
+	}
+
+	// Execute actions on the services
+	for _, service := range services {
+		if service.Action == container.ActionRun {
+			log.Infof("Creating and starting service %s", service.Name)
+			if err := actions.RunContainer(client, &service); err != nil {
+				log.Error(err)
+			}
+		} else if service.Action == container.ActionStop {
+			log.Infof("Stopping and removing service %s", service.Name)
+			if err := actions.StopContainer(client, &service); err != nil {
+				log.Error(err)
+			}
+		}
+	}
 }

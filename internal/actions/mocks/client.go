@@ -50,8 +50,8 @@ func (client MockClient) StopContainer(c t.Container, _ time.Duration) error {
 	return nil
 }
 
-// StartContainer is a mock method
-func (client MockClient) StartContainer(_ t.Container) (t.ContainerID, error) {
+// StartContainerWithExistingConfig is a mock method
+func (client MockClient) StartContainerWithExistingConfig(_ t.Container) (t.ContainerID, error) {
 	return "", nil
 }
 
