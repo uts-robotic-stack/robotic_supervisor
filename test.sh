@@ -1,12 +1,12 @@
 #!/bin/bash
 
-curl -H "Authorization: Bearer robotics" -H  "Content-Type: application/json" -d '{
+curl -H "Authorization: Bearer robotics" --request GET -H  "Content-Type: application/json" -d '{
     "services": {
         "core": {
             "container_name": "core",
             "image" : "dkhoanguyen/robotic_base",
             "command": ["bash", "-c", "sleep infinity"],
-            "action" : "stop"
+            "action" : "run"
         }
     }
-}' localhost:8585/watchtower/v1/container
+}' localhost:8080/watchtower/v1/container

@@ -44,6 +44,7 @@ type Client interface {
 	CheckDigestAndPullImage(t.Container) error
 	CheckImageDigest(t.Container) (bool, error)
 	PullImage(t.Container) error
+	StreamLogs(t.Container, bool) (io.ReadCloser, error)
 }
 
 // NewClient returns a new Client instance which can be used to interact with
@@ -734,4 +735,14 @@ func (client dockerClient) PullImage(container t.Container) error {
 		return err
 	}
 	return nil
+}
+
+func (client dockerClient) StreamLogs(c t.Container, follow bool) (io.ReadCloser, error) {
+	bg := context.Background()
+	out, err := client.api.ContainerLogs(bg, c.ContainerInfo().ID, types.ContainerLogsOptions{
+		ShowStdout: true, ShowStderr: true, Follow: true})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -34,6 +35,11 @@ type Handler struct {
 
 // Handle is the actual http.Handle function doing all the heavy lifting
 func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	log.Info("Received HTTP request to start/stop container")
 	w.Header().Set("Content-Type", "application/json")
 
@@ -54,4 +60,35 @@ func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		log.Info("Skipped. Another update already running.")
 	}
 
+}
+
+// Websocket for streaming logs
+
+type WSHandler struct {
+	fn   func(string, *websocket.Conn)
+	Path string
+}
+
+func NewWSHandler(handlerFunc func(string, *websocket.Conn)) *WSHandler {
+	return &WSHandler{
+		fn:   handlerFunc,
+		Path: "/watchtower/v1/logs",
+	}
+}
+
+var upgrader = websocket.Upgrader{}
+
+func (handle *WSHandler) Handle(w http.ResponseWriter, r *http.Request) {
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	// Extract info
+	containerName := r.URL.Query().Get("container_name")
+
+	// Handle info
+	handle.fn(containerName, conn)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/containrrr/watchtower/pkg/metrics"
 	"github.com/containrrr/watchtower/pkg/notifications"
 	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
 
@@ -204,10 +205,16 @@ func Run(c *cobra.Command, names []string) {
 		}
 	}
 
-	containerHandler := containerHandler.New(func(servicesConfig map[string]interface{}) {
+	cHTTPHandler := containerHandler.New(func(servicesConfig map[string]interface{}) {
 		runServicesHandle(servicesConfig)
 	}, updateLock)
-	httpAPI.RegisterFunc(containerHandler.Path, containerHandler.Handle)
+	httpAPI.RegisterFunc(cHTTPHandler.Path, cHTTPHandler.Handle)
+
+	// Websocket for streaming logs
+	logStreamingWS := containerHandler.NewWSHandler(func(name string, conn *websocket.Conn) {
+		runLogStreaming(name, conn)
+	})
+	httpAPI.RegisterWebsocketHandler(logStreamingWS.Path, logStreamingWS.Handle)
 
 	if enableMetricsAPI {
 		metricsHandler := apiMetrics.New()
@@ -311,7 +318,7 @@ func writeStartupMessage(c *cobra.Command, sched time.Time, filtering string) {
 
 	if enableUpdateAPI {
 		// TODO: make listen port configurable
-		startupLog.Info("The HTTP API is enabled at :9090.")
+		startupLog.Info("The HTTP API is enabled at :8080.")
 	}
 
 	if !noStartupMessage {
@@ -439,5 +446,12 @@ func runServicesHandle(servicesConfig map[string]interface{}) {
 				log.Error(err)
 			}
 		}
+	}
+}
+
+func runLogStreaming(name string, conn *websocket.Conn) {
+	log.Infof("Streaming logs of container %s", name)
+	if err := actions.StreamLogs(client, name, true, 60*time.Second, conn); err != nil {
+		log.Error(err)
 	}
 }
