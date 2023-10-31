@@ -394,6 +394,10 @@ Should only be used for testing.`)
 		"notification-log-stdout",
 		envBool("WATCHTOWER_NOTIFICATION_LOG_STDOUT"),
 		"Write notification logs to stdout instead of logging (to stderr)")
+	flags.Bool(
+		"update-on-startup",
+		false,
+		"Run update once on startup")
 }
 
 func envString(key string) string {

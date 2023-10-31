@@ -24,7 +24,7 @@ func New(updateFn func(images []string), updateLock chan bool) *Handler {
 
 	return &Handler{
 		fn:   updateFn,
-		Path: "/v1/update",
+		Path: "/watchtower/v1/update",
 	}
 }
 
@@ -57,15 +57,19 @@ func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	if len(images) > 0 {
 		chanValue := <-lock
-		defer func() { lock <- chanValue }()
+		defer func() {
+			lock <- chanValue
+		}()
 		handle.fn(images)
 	} else {
 		select {
 		case chanValue := <-lock:
-			defer func() { lock <- chanValue }()
+			defer func() {
+				lock <- chanValue
+			}()
 			handle.fn(images)
 		default:
-			log.Debug("Skipped. Another update already running.")
+			log.Info("Skipped. Another update already running.")
 		}
 	}
 

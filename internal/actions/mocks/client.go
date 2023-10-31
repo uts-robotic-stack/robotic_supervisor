@@ -50,8 +50,8 @@ func (client MockClient) StopContainer(c t.Container, _ time.Duration) error {
 	return nil
 }
 
-// StartContainer is a mock method
-func (client MockClient) StartContainer(_ t.Container) (t.ContainerID, error) {
+// StartContainerWithExistingConfig is a mock method
+func (client MockClient) StartContainerWithExistingConfig(_ t.Container) (t.ContainerID, error) {
 	return "", nil
 }
 
@@ -86,7 +86,7 @@ func (client MockClient) ExecuteCommand(_ t.ContainerID, command string, _ int) 
 }
 
 // IsContainerStale is true if not explicitly stated in TestData for the mock client
-func (client MockClient) IsContainerStale(cont t.Container, params t.UpdateParams) (bool, t.ImageID, error) {
+func (client MockClient) IsContainerStale(cont t.Container, params t.UpdateParams, load_local_image bool) (bool, t.ImageID, error) {
 	stale, found := client.TestData.Staleness[cont.Name()]
 	if !found {
 		stale = true

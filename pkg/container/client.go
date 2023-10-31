@@ -2,8 +2,12 @@ package container
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	sdkClient "github.com/docker/docker/client"
+	"github.com/google/gousb"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 
@@ -28,12 +33,18 @@ type Client interface {
 	ListContainers(t.Filter) ([]t.Container, error)
 	GetContainer(containerID t.ContainerID) (t.Container, error)
 	StopContainer(t.Container, time.Duration) error
-	StartContainer(t.Container) (t.ContainerID, error)
+	StartContainerWithExistingConfig(t.Container) (t.ContainerID, error)
+	StartContainer(string, container.Config, container.HostConfig, network.NetworkingConfig) (t.ContainerID, error)
 	RenameContainer(t.Container, string) error
 	IsContainerStale(t.Container, t.UpdateParams) (stale bool, latestImage t.ImageID, err error)
 	ExecuteCommand(containerID t.ContainerID, command string, timeout int) (SkipUpdate bool, err error)
 	RemoveImageByID(t.ImageID) error
 	WarnOnHeadPullFailed(container t.Container) bool
+	LoadImageFromUSB(string) error
+	CheckDigestAndPullImage(t.Container) error
+	CheckImageDigest(t.Container) (bool, error)
+	PullImage(t.Container) error
+	StreamLogs(t.Container, bool) (io.ReadCloser, error)
 }
 
 // NewClient returns a new Client instance which can be used to interact with
@@ -246,7 +257,7 @@ func (client dockerClient) GetNetworkConfig(c t.Container) *network.NetworkingCo
 	return config
 }
 
-func (client dockerClient) StartContainer(c t.Container) (t.ContainerID, error) {
+func (client dockerClient) StartContainerWithExistingConfig(c t.Container) (t.ContainerID, error) {
 	bg := context.Background()
 	config := c.GetCreateConfig()
 	hostConfig := c.GetCreateHostConfig()
@@ -300,6 +311,39 @@ func (client dockerClient) StartContainer(c t.Container) (t.ContainerID, error) 
 
 }
 
+func (client dockerClient) StartContainer(name string, config container.Config,
+	hostConfig container.HostConfig, networkConfig network.NetworkingConfig) (t.ContainerID, error) {
+	bg := context.Background()
+
+	log.Debugf("Creating %s", name)
+	createdContainer, err := client.api.ContainerCreate(bg, &config, &hostConfig, &networkConfig, nil, name)
+	if err != nil {
+		return "", err
+	}
+
+	if !(hostConfig.NetworkMode.IsHost()) {
+
+		for k := range networkConfig.EndpointsConfig {
+			err = client.api.NetworkDisconnect(bg, k, createdContainer.ID, true)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		for k, v := range networkConfig.EndpointsConfig {
+			err = client.api.NetworkConnect(bg, k, createdContainer.ID, v)
+			if err != nil {
+				return "", err
+			}
+		}
+
+	}
+
+	createdContainerID := t.ContainerID(createdContainer.ID)
+	c, _ := client.GetContainer(createdContainerID)
+	return createdContainerID, client.doStartContainer(bg, c, createdContainer)
+}
+
 func (client dockerClient) doStartContainer(bg context.Context, c t.Container, creation container.CreateResponse) error {
 	name := c.Name()
 
@@ -318,20 +362,18 @@ func (client dockerClient) RenameContainer(c t.Container, newName string) error 
 }
 
 func (client dockerClient) IsContainerStale(container t.Container, params t.UpdateParams) (stale bool, latestImage t.ImageID, err error) {
-	ctx := context.Background()
-
 	if container.IsNoPull(params) {
 		log.Debugf("Skipping image pull.")
-	} else if err := client.PullImage(ctx, container); err != nil {
+	} else if err := client.CheckDigestAndPullImage(container); err != nil {
 		return false, container.SafeImageID(), err
 	}
-
-	return client.HasNewImage(ctx, container)
+	return client.HasNewImage(container)
 }
 
-func (client dockerClient) HasNewImage(ctx context.Context, container t.Container) (hasNew bool, latestImage t.ImageID, err error) {
+func (client dockerClient) HasNewImage(container t.Container) (hasNew bool, latestImage t.ImageID, err error) {
 	currentImageID := t.ImageID(container.ContainerInfo().ContainerJSONBase.Image)
 	imageName := container.ImageName()
+	ctx := context.Background()
 
 	newImageInfo, _, err := client.api.ImageInspectWithRaw(ctx, imageName)
 	if err != nil {
@@ -348,11 +390,13 @@ func (client dockerClient) HasNewImage(ctx context.Context, container t.Containe
 	return true, newImageID, nil
 }
 
-// PullImage pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed
+//	pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed
+//
 // to match the one that the registry reports via a HEAD request
-func (client dockerClient) PullImage(ctx context.Context, container t.Container) error {
+func (client dockerClient) CheckDigestAndPullImage(container t.Container) error {
 	containerName := container.Name()
 	imageName := container.ImageName()
+	ctx := context.Background()
 
 	fields := log.Fields{
 		"image":     imageName,
@@ -556,4 +600,149 @@ func (client dockerClient) waitForStopOrTimeout(c t.Container, waitTime time.Dur
 		}
 		time.Sleep(1 * time.Second)
 	}
+}
+
+func (client dockerClient) LoadImageFromUSB(path string) error {
+	ctx := gousb.NewContext()
+	defer ctx.Close()
+
+	// Open the first found USB device
+	devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
+		return desc.Class == gousb.ClassMassStorage || desc.Class == gousb.ClassPerInterface
+	})
+	if err != nil {
+		log.Fatal("Error opening device: ", err)
+	}
+	defer func() {
+		for _, d := range devs {
+			d.Close()
+		}
+	}()
+	if len(devs) == 0 {
+		return errors.New("NO USB DEVICE FOUND")
+	}
+	pID := devs[0].Desc.Product.String()
+	vID := devs[0].Desc.Vendor.String()
+
+	mountPath, err := getUSBMountPath(vID, pID)
+	if err != nil {
+		log.Error("Error obtaining mount path for USB: ", err)
+		return err
+	}
+	// Obtain mount
+	// Replace with the path to your Docker image on the USB device
+	imageData, err := os.ReadFile(mountPath + path)
+	if err != nil {
+		log.Error("Error reading Docker image from USB: ", err)
+		return err
+	}
+
+	responseBody, err := client.api.ImageLoad(context.Background(), bytes.NewReader(imageData), false)
+	if err != nil {
+		log.Error("Error loading Docker image: ", err)
+		return err
+	}
+	defer responseBody.Body.Close()
+
+	log.Info("Docker image loaded successfully.")
+
+	return nil
+}
+
+func getUSBMountPath(vendorID, productID string) (string, error) {
+	usbDevicesPath := "/dev/disk/by-id/"
+	files, err := ioutil.ReadDir(usbDevicesPath)
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range files {
+		if strings.Contains(file.Name(), vendorID) && strings.Contains(file.Name(), productID) {
+			symlinkPath := filepath.Join(usbDevicesPath, file.Name())
+			realPath, err := filepath.EvalSymlinks(symlinkPath)
+			if err != nil {
+				return "", err
+			}
+			return realPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("USB device not found")
+}
+
+func (client dockerClient) CheckImageDigest(container t.Container) (bool, error) {
+	containerName := container.Name()
+	imageName := container.ImageName()
+
+	fields := log.Fields{
+		"image":     imageName,
+		"container": containerName,
+	}
+
+	log.WithFields(fields).Debugf("Trying to load authentication credentials.")
+	opts, err := registry.GetPullOptions(imageName)
+	if err != nil {
+		log.Debugf("Error loading authentication credentials %s", err)
+		return false, err
+	}
+	if opts.RegistryAuth != "" {
+		log.Debug("Credentials loaded")
+	}
+
+	log.WithFields(fields).Debugf("Checking if pull is needed")
+
+	if match, err := digest.CompareDigest(container, opts.RegistryAuth); err != nil {
+		headLevel := log.DebugLevel
+		log.WithFields(fields).Logf(headLevel, "Could not do a head request for %q, falling back to regular pull.", imageName)
+		log.WithFields(fields).Log(headLevel, "Reason: ", err)
+		return false, err
+	} else if match {
+		log.Debug("No pull needed. Skipping image.")
+		return true, nil
+	} else {
+		log.Debug("Digests did not match, doing a pull.")
+		return false, nil
+	}
+}
+
+func (client dockerClient) PullImage(container t.Container) error {
+	containerName := container.Name()
+	imageName := container.ImageName()
+	ctx := context.Background()
+
+	fields := log.Fields{
+		"image":     imageName,
+		"container": containerName,
+	}
+
+	log.WithFields(fields).Debugf("Trying to load authentication credentials.")
+	opts, err := registry.GetPullOptions(imageName)
+	if err != nil {
+		log.Debugf("Error loading authentication credentials %s", err)
+		return err
+	}
+
+	response, err := client.api.ImagePull(ctx, imageName, opts)
+	if err != nil {
+		log.Debugf("Error pulling image %s, %s", imageName, err)
+		return err
+	}
+
+	defer response.Close()
+	// the pull request will be aborted prematurely unless the response is read
+	if _, err = io.ReadAll(response); err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+func (client dockerClient) StreamLogs(c t.Container, follow bool) (io.ReadCloser, error) {
+	bg := context.Background()
+	out, err := client.api.ContainerLogs(bg, c.ContainerInfo().ID, types.ContainerLogsOptions{
+		ShowStdout: true, ShowStderr: true, Follow: true})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }

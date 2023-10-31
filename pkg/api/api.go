@@ -49,6 +49,11 @@ func (api *API) RegisterHandler(path string, handler http.Handler) {
 	http.Handle(path, api.RequireToken(handler.ServeHTTP))
 }
 
+func (api *API) RegisterWebsocketHandler(path string, handler http.HandlerFunc) {
+	api.hasHandlers = true
+	http.HandleFunc(path, api.RequireToken(handler))
+}
+
 // Start the API and serve over HTTP. Requires an API Token to be set.
 func (api *API) Start(block bool, port string) error {
 
@@ -72,5 +77,5 @@ func (api *API) Start(block bool, port string) error {
 }
 
 func runHTTPServer(port string) {
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

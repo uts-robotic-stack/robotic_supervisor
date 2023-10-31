@@ -84,7 +84,7 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 	} else {
 		failedStop, stoppedImages := stopContainersInReversedOrder(containersToUpdate, client, params)
 		progress.UpdateFailed(failedStop)
-		failedStart := restartContainersInSortedOrder(containersToUpdate, client, params, stoppedImages)
+		failedStart := reStartContainerWithExistingConfigsInSortedOrder(containersToUpdate, client, params, stoppedImages)
 		progress.UpdateFailed(failedStart)
 	}
 
@@ -92,6 +92,44 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 		lifecycle.ExecutePostChecks(client, params)
 	}
 	return progress.Report(), nil
+}
+
+func CheckForNewUpdateFromRegistry(client container.Client, params types.UpdateParams) (bool, error) {
+	log.Debug("Checking for updated images from registry")
+	containers, err := client.ListContainers(params.Filter)
+	if err != nil {
+		return false, err
+	}
+
+	for _, targetContainer := range containers {
+		if match, err := client.CheckImageDigest(targetContainer); err != nil {
+			return !match, err
+		}
+	}
+	return false, nil
+}
+
+func DownloadUpdate(client container.Client, params types.UpdateParams) error {
+	log.Debug("Checking containers for updated images")
+	containers, err := client.ListContainers(params.Filter)
+	if err != nil {
+		return err
+	}
+
+	for _, targetContainer := range containers {
+		if err := client.PullImage(targetContainer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TODO
+func LoadUpdate(client container.Client, params types.UpdateParams) error {
+	if err := client.LoadImageFromUSB("robotics_base.tar"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func performRollingRestart(containers []types.Container, client container.Client, params types.UpdateParams) map[types.ContainerID]error {
@@ -172,7 +210,7 @@ func stopStaleContainer(container types.Container, client container.Client, para
 	return nil
 }
 
-func restartContainersInSortedOrder(containers []types.Container, client container.Client, params types.UpdateParams, stoppedImages map[types.ImageID]bool) map[types.ContainerID]error {
+func reStartContainerWithExistingConfigsInSortedOrder(containers []types.Container, client container.Client, params types.UpdateParams, stoppedImages map[types.ImageID]bool) map[types.ContainerID]error {
 	cleanupImageIDs := make(map[types.ImageID]bool, len(containers))
 	failed := make(map[types.ContainerID]error, len(containers))
 
@@ -221,7 +259,7 @@ func restartStaleContainer(container types.Container, client container.Client, p
 	}
 
 	if !params.NoRestart {
-		if newContainerID, err := client.StartContainer(container); err != nil {
+		if newContainerID, err := client.StartContainerWithExistingConfig(container); err != nil {
 			log.Error(err)
 			return err
 		} else if container.ToRestart() && params.LifecycleHooks {

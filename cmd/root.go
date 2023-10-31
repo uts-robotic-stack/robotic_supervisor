@@ -15,6 +15,7 @@ import (
 	"github.com/containrrr/watchtower/internal/flags"
 	"github.com/containrrr/watchtower/internal/meta"
 	"github.com/containrrr/watchtower/pkg/api"
+	containerHandler "github.com/containrrr/watchtower/pkg/api/container"
 	apiMetrics "github.com/containrrr/watchtower/pkg/api/metrics"
 	"github.com/containrrr/watchtower/pkg/api/update"
 	"github.com/containrrr/watchtower/pkg/container"
@@ -22,6 +23,7 @@ import (
 	"github.com/containrrr/watchtower/pkg/metrics"
 	"github.com/containrrr/watchtower/pkg/notifications"
 	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
 
@@ -144,6 +146,7 @@ func Run(c *cobra.Command, names []string) {
 	apiToken, _ := c.PersistentFlags().GetString("http-api-token")
 	healthCheck, _ := c.PersistentFlags().GetBool("health-check")
 	port, _ := c.PersistentFlags().GetString("port")
+	updateOnStartup, _ := c.PersistentFlags().GetBool("update-on-startup")
 
 	if healthCheck {
 		// health check should not have pid 1
@@ -176,8 +179,12 @@ func Run(c *cobra.Command, names []string) {
 		logNotifyExit(err)
 	}
 
-	// Run on startup
-	runUpdatesWithNotifications(filter)
+	// Run update once startup to check and download updates from the cloud
+	if updateOnStartup {
+		runCheckForUpdates(filter)
+		metric := runUpdatesWithNotifications(filter)
+		metrics.RegisterScan(metric)
+	}
 
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
 	updateLock := make(chan bool, 1)
@@ -198,6 +205,19 @@ func Run(c *cobra.Command, names []string) {
 		}
 	}
 
+	cHTTPHandler := containerHandler.New(func(servicesConfig map[string]interface{}) {
+		runServicesHandle(servicesConfig)
+	}, func() []string {
+		return runListContainers()
+	}, updateLock)
+	httpAPI.RegisterFunc(cHTTPHandler.Path, cHTTPHandler.Handle)
+
+	// Websocket for streaming logs
+	logStreamingWS := containerHandler.NewWSHandler(func(name string, conn *websocket.Conn) {
+		runLogStreaming(name, conn)
+	})
+	httpAPI.RegisterWebsocketHandler(logStreamingWS.Path, logStreamingWS.Handle)
+
 	if enableMetricsAPI {
 		metricsHandler := apiMetrics.New()
 		httpAPI.RegisterHandler(metricsHandler.Path, metricsHandler.Handle)
@@ -207,7 +227,7 @@ func Run(c *cobra.Command, names []string) {
 		log.Error("failed to start API", err)
 	}
 
-	if err := runUpgradesOnSchedule(c, filter, filterDesc, updateLock); err != nil {
+	if err := runChecksOnSchedule(c, filter, filterDesc, updateLock); err != nil {
 		log.Error(err)
 	}
 
@@ -313,7 +333,7 @@ func writeStartupMessage(c *cobra.Command, sched time.Time, filtering string) {
 	}
 }
 
-func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lock chan bool) error {
+func runChecksOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lock chan bool) error {
 	if lock == nil {
 		lock = make(chan bool, 1)
 		lock <- true
@@ -323,21 +343,10 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	err := scheduler.AddFunc(
 		scheduleSpec,
 		func() {
-			select {
-			case v := <-lock:
-				defer func() { lock <- v }()
-				metric := runUpdatesWithNotifications(filter)
-				metrics.RegisterScan(metric)
-			default:
-				// Update was skipped
-				metrics.RegisterScan(nil)
-				log.Debug("Skipped another update already running.")
-			}
-
-			nextRuns := scheduler.Entries()
-			if len(nextRuns) > 0 {
-				log.Debug("Scheduled next run: " + nextRuns[0].Next.String())
-			}
+			v := <-lock
+			defer func() { lock <- v }()
+			// Check for updates from registry and from local devices
+			runCheckForUpdates(filter)
 		})
 
 	if err != nil {
@@ -360,6 +369,33 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	return nil
 }
 
+func runCheckForUpdates(filter t.Filter) {
+	updateParams := t.UpdateParams{
+		Filter:          filter,
+		Cleanup:         cleanup,
+		NoRestart:       noRestart,
+		Timeout:         timeout,
+		MonitorOnly:     monitorOnly,
+		LifecycleHooks:  lifecycleHooks,
+		RollingRestart:  rollingRestart,
+		LabelPrecedence: labelPrecedence,
+	}
+	// Check for updates from registry first
+	if updateAvailable, err := actions.CheckForNewUpdateFromRegistry(client, updateParams); err != nil {
+		log.Error(err)
+	} else if updateAvailable {
+		log.Info("Updates available from registry. Attempting to pull updates now...")
+		err := actions.DownloadUpdate(client, updateParams)
+		if err != nil {
+			log.Error(err)
+		}
+	} else if !updateAvailable {
+		log.Debug("Updates not available from upstream")
+	} else {
+		log.Debug("Unable to check for update from upstream registry")
+	}
+}
+
 func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 	notifier.StartNotification()
 	updateParams := t.UpdateParams{
@@ -372,6 +408,8 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		RollingRestart:  rollingRestart,
 		LabelPrecedence: labelPrecedence,
 	}
+	// Run and check for updated on the cloud. Do not attempt to load local image
+	log.Info("Update requested. Updating...")
 	result, err := actions.Update(client, updateParams)
 	if err != nil {
 		log.Error(err)
@@ -384,4 +422,54 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		"Failed":  metricResults.Failed,
 	}).Info("Session done")
 	return metricResults
+}
+
+func runServicesHandle(servicesConfig map[string]interface{}) {
+	log.Info("Running service handle")
+	services := []container.Service{}
+	rawServiceData := servicesConfig["services"].(map[string]interface{})
+
+	// Extract services from the raw data
+	for name, config := range rawServiceData {
+		service := container.MakeService(config.(map[string]interface{}), name)
+		services = append(services, service)
+	}
+
+	// Execute actions on the services
+	for _, service := range services {
+		if service.Action == container.ActionRun {
+			log.Infof("Creating and starting service %s", service.Name)
+			if err := actions.RunContainer(client, &service); err != nil {
+				log.Error(err)
+			}
+		} else if service.Action == container.ActionStop {
+			log.Infof("Stopping and removing service %s", service.Name)
+			if err := actions.StopContainer(client, &service); err != nil {
+				log.Error(err)
+			}
+		}
+	}
+}
+
+func runLogStreaming(name string, conn *websocket.Conn) {
+	log.Infof("Streaming logs of container %s", name)
+	if err := actions.StreamLogs(client, name, true, 60*time.Second, conn); err != nil {
+		log.Error(err)
+	}
+}
+
+func runListContainers() []string {
+	containerNames := make([]string, 0)
+	containers, err := client.ListContainers(filters.NoFilter)
+	if err != nil {
+		log.Error(err)
+		return containerNames
+	}
+	for _, container := range containers {
+		if container.IsWatchtower() {
+			continue
+		}
+		containerNames = append(containerNames, container.Name()[1:])
+	}
+	return containerNames
 }
