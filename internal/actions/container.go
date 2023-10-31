@@ -18,10 +18,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func ListContainers(client containerService.Client) error {
-	return nil
-}
-
 func RunContainer(client containerService.Client, service *containerService.Service) error {
 	// Create config
 	containerConfig, networkConfig, hostConfig := makeContainerCreateOptions(service, nil)

@@ -13,7 +13,10 @@ var (
 )
 
 // New is a factory function creating a new  Handler instance
-func New(handleFunc func(map[string]interface{}), updateLock chan bool) *Handler {
+func New(
+	postFunc func(map[string]interface{}),
+	getFunc func() []string,
+	updateLock chan bool) *Handler {
 	if updateLock != nil {
 		lock = updateLock
 	} else {
@@ -22,44 +25,53 @@ func New(handleFunc func(map[string]interface{}), updateLock chan bool) *Handler
 	}
 
 	return &Handler{
-		fn:   handleFunc,
-		Path: "/watchtower/v1/container",
+		PostFunc: postFunc,
+		GetFunc:  getFunc,
+		Path:     "/watchtower/v1/container",
 	}
 }
 
 // Handler is an API handler used for triggering container update scans
 type Handler struct {
-	fn   func(map[string]interface{})
-	Path string
+	PostFunc func(map[string]interface{})
+	GetFunc  func() []string
+	Path     string
 }
 
 // Handle is the actual http.Handle function doing all the heavy lifting
 func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	log.Info("Received HTTP request to start/stop container")
-	w.Header().Set("Content-Type", "application/json")
-
-	var reqBody map[string]interface{}
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	select {
 	case chanValue := <-lock:
 		defer func() {
 			lock <- chanValue
 		}()
-		handle.fn(reqBody)
-	default:
-		log.Info("Skipped. Another update already running.")
-	}
+		if r.Method == http.MethodPost {
+			log.Info("Received HTTP request to start/stop container")
+			w.Header().Set("Content-Type", "application/json")
 
+			var reqBody map[string]interface{}
+			err := json.NewDecoder(r.Body).Decode(&reqBody)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			handle.PostFunc(reqBody)
+		} else if r.Method == http.MethodGet {
+			log.Info("Received HTTP request to get all container")
+			output := handle.GetFunc()
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(output)
+		}
+
+	default:
+		log.Info("Skipped. Another docker process is already running.")
+		http.Error(w, "Request dropped. Another docker process is already running.", http.StatusConflict)
+	}
 }
 
 // Websocket for streaming logs

@@ -207,6 +207,8 @@ func Run(c *cobra.Command, names []string) {
 
 	cHTTPHandler := containerHandler.New(func(servicesConfig map[string]interface{}) {
 		runServicesHandle(servicesConfig)
+	}, func() []string {
+		return runListContainers()
 	}, updateLock)
 	httpAPI.RegisterFunc(cHTTPHandler.Path, cHTTPHandler.Handle)
 
@@ -454,4 +456,20 @@ func runLogStreaming(name string, conn *websocket.Conn) {
 	if err := actions.StreamLogs(client, name, true, 60*time.Second, conn); err != nil {
 		log.Error(err)
 	}
+}
+
+func runListContainers() []string {
+	containerNames := make([]string, 0)
+	containers, err := client.ListContainers(filters.NoFilter)
+	if err != nil {
+		log.Error(err)
+		return containerNames
+	}
+	for _, container := range containers {
+		if container.IsWatchtower() {
+			continue
+		}
+		containerNames = append(containerNames, container.Name()[1:])
+	}
+	return containerNames
 }
