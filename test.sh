@@ -9,4 +9,4 @@ curl -H "Authorization: Bearer robotics" --request GET -H  "Content-Type: applic
             "action" : "run"
         }
     }
-}' localhost:8080/watchtower/v1/container
+}' localhost:8080/api/v1/watchtower/container

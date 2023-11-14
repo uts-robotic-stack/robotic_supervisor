@@ -1,8 +1,9 @@
 package metrics
 
 import (
-	"github.com/containrrr/watchtower/pkg/metrics"
 	"net/http"
+
+	"github.com/containrrr/watchtower/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -20,7 +21,7 @@ func New() *Handler {
 	handler := promhttp.Handler()
 
 	return &Handler{
-		Path:    "/v1/metrics",
+		Path:    "/api/v1/watchtower/metrics",
 		Handle:  handler.ServeHTTP,
 		Metrics: m,
 	}
