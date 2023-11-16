@@ -24,7 +24,7 @@ func New(updateFn func(images []string), updateLock chan bool) *Handler {
 
 	return &Handler{
 		fn:   updateFn,
-		Path: "/watchtower/v1/update",
+		Path: "/api/v1/watchtower/update",
 	}
 }
 

@@ -19,7 +19,7 @@ def on_open(ws):
 if __name__ == "__main__":
     token = "robotics"  # Replace with your authentication token
     header = {"Authorization": f"Bearer {token}"}
-    ws = websocket.WebSocketApp("ws://localhost:8080/watchtower/v1/logs?container_name=watchtower",
+    ws = websocket.WebSocketApp("ws://localhost:8080/api/v1/watchtower/logs?container_name=watchtower",
                               header=header,
                               on_message=on_message,
                               on_error=on_error,

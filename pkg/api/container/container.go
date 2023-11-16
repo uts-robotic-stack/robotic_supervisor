@@ -27,7 +27,7 @@ func New(
 	return &Handler{
 		PostFunc: postFunc,
 		GetFunc:  getFunc,
-		Path:     "/watchtower/v1/container",
+		Path:     "/api/v1/watchtower/container",
 	}
 }
 
@@ -84,7 +84,7 @@ type WSHandler struct {
 func NewWSHandler(handlerFunc func(string, *websocket.Conn)) *WSHandler {
 	return &WSHandler{
 		fn:   handlerFunc,
-		Path: "/watchtower/v1/logs",
+		Path: "/api/v1/watchtower/logs",
 	}
 }
 

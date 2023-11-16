@@ -16,12 +16,14 @@ import (
 	"github.com/containrrr/watchtower/internal/meta"
 	"github.com/containrrr/watchtower/pkg/api"
 	containerHandler "github.com/containrrr/watchtower/pkg/api/container"
+	"github.com/containrrr/watchtower/pkg/api/device"
 	apiMetrics "github.com/containrrr/watchtower/pkg/api/metrics"
 	"github.com/containrrr/watchtower/pkg/api/update"
 	"github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/filters"
 	"github.com/containrrr/watchtower/pkg/metrics"
 	"github.com/containrrr/watchtower/pkg/notifications"
+	"github.com/containrrr/watchtower/pkg/types"
 	t "github.com/containrrr/watchtower/pkg/types"
 	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
@@ -217,6 +219,12 @@ func Run(c *cobra.Command, names []string) {
 		runLogStreaming(name, conn)
 	})
 	httpAPI.RegisterWebsocketHandler(logStreamingWS.Path, logStreamingWS.Handle)
+
+	// Device Handler
+	deviceHandler := device.New(func() types.Device {
+		return actions.GetDeviceInfo(client)
+	}, updateLock)
+	httpAPI.RegisterFunc(deviceHandler.Path, deviceHandler.Handle)
 
 	if enableMetricsAPI {
 		metricsHandler := apiMetrics.New()
