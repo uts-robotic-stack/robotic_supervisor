@@ -11,4 +11,4 @@
 #     }
 # }' localhost:8080/api/v1/watchtower/container
 
-curl -H "Authorization: Bearer robotics" --request GET -H  "Content-Type: application/json" localhost:8080/api/v1/watchtower/device-info
+curl -H "Authorization: Bearer robotics" --request GET  0.0.0.0:8080/api/v1/watchtower/device-info
