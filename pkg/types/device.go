@@ -10,3 +10,6 @@ type Device struct {
 	InternetStatus    string `json:"internet_status"`
 	SupervisorRelease string `json:"supervisor_release"`
 }
+
+type HardwareStatus struct {
+}

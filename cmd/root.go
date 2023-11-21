@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"errors"
 	"math"
-	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -12,19 +10,17 @@ import (
 	"time"
 
 	"github.com/containrrr/watchtower/internal/actions"
+	"github.com/containrrr/watchtower/internal/api"
 	"github.com/containrrr/watchtower/internal/flags"
+	"github.com/containrrr/watchtower/internal/handlers"
 	"github.com/containrrr/watchtower/internal/meta"
-	"github.com/containrrr/watchtower/pkg/api"
-	containerHandler "github.com/containrrr/watchtower/pkg/api/container"
-	"github.com/containrrr/watchtower/pkg/api/device"
-	apiMetrics "github.com/containrrr/watchtower/pkg/api/metrics"
-	"github.com/containrrr/watchtower/pkg/api/update"
+	"github.com/containrrr/watchtower/internal/middleware"
 	"github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/filters"
 	"github.com/containrrr/watchtower/pkg/metrics"
 	"github.com/containrrr/watchtower/pkg/notifications"
-	"github.com/containrrr/watchtower/pkg/types"
 	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
@@ -142,9 +138,9 @@ func PreRun(cmd *cobra.Command, _ []string) {
 func Run(c *cobra.Command, names []string) {
 	filter, filterDesc := filters.BuildFilter(names, disableContainers, enableLabel, scope)
 	runOnce, _ := c.PersistentFlags().GetBool("run-once")
-	enableUpdateAPI, _ := c.PersistentFlags().GetBool("http-api-update")
-	enableMetricsAPI, _ := c.PersistentFlags().GetBool("http-api-metrics")
-	unblockHTTPAPI, _ := c.PersistentFlags().GetBool("http-api-periodic-polls")
+	// enableUpdateAPI, _ := c.PersistentFlags().GetBool("http-api-update")
+	// enableMetricsAPI, _ := c.PersistentFlags().GetBool("http-api-metrics")
+	// unblockHTTPAPI, _ := c.PersistentFlags().GetBool("http-api-periodic-polls")
 	apiToken, _ := c.PersistentFlags().GetString("http-api-token")
 	healthCheck, _ := c.PersistentFlags().GetBool("health-check")
 	port, _ := c.PersistentFlags().GetString("port")
@@ -189,53 +185,53 @@ func Run(c *cobra.Command, names []string) {
 	}
 
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
-	updateLock := make(chan bool, 1)
-	updateLock <- true
+	clientLock := make(chan bool, 1)
+	clientLock <- true
 
-	httpAPI := api.New(apiToken)
+	// Create a new Gin router
+	router := gin.Default()
+	// Add authentication
+	router.Use(middleware.AuthMiddleware(apiToken))
 
-	if enableUpdateAPI {
-		updateHandler := update.New(func(images []string) {
-			metric := runUpdatesWithNotifications(filters.FilterByImage(images, filter))
-			metrics.RegisterScan(metric)
-		}, updateLock)
-		httpAPI.RegisterFunc(updateHandler.Path, updateHandler.Handle)
-		// If polling isn't enabled the scheduler is never started, and
-		// we need to trigger the startup messages manually.
-		if !unblockHTTPAPI {
-			writeStartupMessage(c, time.Time{}, filterDesc)
-		}
+	// Create handlers
+	watchtowerHandler := handlers.WatchtowerHandler{
+		Client:            &client,
+		Filter:            filter,
+		Notifier:          notifier,
+		ScheduleSpec:      scheduleSpec,
+		Cleanup:           cleanup,
+		NoRestart:         noRestart,
+		NoPull:            noPull,
+		MonitorOnly:       monitorOnly,
+		EnableLabel:       enableLabel,
+		DisableContainers: disableContainers,
+		Timeout:           timeout,
+		LifecycleHooks:    lifecycleHooks,
+		RollingRestart:    rollingRestart,
+		Scope:             scope,
+		LabelPrecedence:   labelPrecedence,
+		Lock:              clientLock,
 	}
 
-	cHTTPHandler := containerHandler.New(func(servicesConfig map[string]interface{}) {
-		runServicesHandle(servicesConfig)
-	}, func() []string {
-		return runListContainers()
-	}, updateLock)
-	httpAPI.RegisterFunc(cHTTPHandler.Path, cHTTPHandler.Handle)
-
-	// Websocket for streaming logs
-	logStreamingWS := containerHandler.NewWSHandler(func(name string, conn *websocket.Conn) {
-		runLogStreaming(name, conn)
-	})
-	httpAPI.RegisterWebsocketHandler(logStreamingWS.Path, logStreamingWS.Handle)
-
-	// Device Handler
-	deviceHandler := device.New(func() types.Device {
-		return actions.GetDeviceInfo(client)
-	}, updateLock)
-	httpAPI.RegisterFunc(deviceHandler.Path, deviceHandler.Handle)
-
-	if enableMetricsAPI {
-		metricsHandler := apiMetrics.New()
-		httpAPI.RegisterHandler(metricsHandler.Path, metricsHandler.Handle)
+	deviceHandler := handlers.DeviceHandler{
+		Client: &client,
+		Lock:   clientLock,
 	}
 
-	if err := httpAPI.Start(enableUpdateAPI && !unblockHTTPAPI, port); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Error("failed to start API", err)
+	containerHandler := handlers.ContainerHandler{
+		Client: &client,
+		Lock:   clientLock,
 	}
 
-	if err := runChecksOnSchedule(c, filter, filterDesc, updateLock); err != nil {
+	// Set routes
+	api.SetRoutes(router, &deviceHandler, &watchtowerHandler, &containerHandler)
+
+	// Start api
+	go func() {
+		router.Run(":" + port)
+	}()
+
+	if err := runChecksOnSchedule(c, filter, filterDesc, clientLock); err != nil {
 		log.Error(err)
 	}
 

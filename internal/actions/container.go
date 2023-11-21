@@ -74,6 +74,12 @@ func StreamLogs(client containerService.Client, name string, follow bool, timeOu
 			if err != nil {
 				return err
 			}
+			err = conn.WriteMessage(websocket.PingMessage, []byte{})
+			if err != nil {
+				// fmt.Println(err)
+				conn.Close()
+				return err
+			}
 			if err := conn.WriteMessage(websocket.TextMessage, str); err != nil {
 				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 					return nil
