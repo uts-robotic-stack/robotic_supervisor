@@ -213,11 +213,13 @@ func Run(c *cobra.Command, names []string) {
 	}
 
 	deviceHandler := handlers.DeviceHandler{
-		Client: &client,
+		Client:                  client,
+		HardwareStatusFrequency: 0.1, // Once every 10 seconds
 	}
 
 	containerHandler := handlers.ContainerHandler{
-		Client: client,
+		Client:        client,
+		LogsFrequency: 10, // 10 Hz
 	}
 
 	// Set routes

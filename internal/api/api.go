@@ -16,13 +16,14 @@ func SetRoutes(router *gin.Engine,
 		deviceSubgroup := v1.Group("/device")
 		{
 			deviceSubgroup.GET("/info", deviceHandler.HandleGetDeviceInfo)
+			deviceSubgroup.GET("/hardware-status", deviceHandler.HandlerWSHardwareStatus)
 		}
 
 		watchtowerSubgroup := v1.Group("/watchtower")
 		{
 			watchtowerSubgroup.POST("/update", watchtowerHandler.HandlePostUpdate)
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
-			watchtowerSubgroup.GET("/logs", containerHandler.HandlerLogs)
+			watchtowerSubgroup.GET("/logs", containerHandler.HandleWSLogs)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/containrrr/watchtower/internal/actions"
 	"github.com/containrrr/watchtower/pkg/container"
@@ -10,19 +11,24 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type ContainerHandler struct {
-	Client      container.Client
-	Connections map[*websocket.Conn]struct{}
+	Client        container.Client
+	LogsFrequency float64
 	sync.Mutex
 }
 
-func (h *ContainerHandler) HandlerLogs(c *gin.Context) {
+func NewContainerHandler(client container.Client) *ContainerHandler {
+	return &ContainerHandler{
+		Client: client,
+	}
+}
+
+func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
@@ -31,7 +37,10 @@ func (h *ContainerHandler) HandlerLogs(c *gin.Context) {
 
 	containerName := c.Query("container")
 	// Iterate through each container and retrieve its logs
-	go actions.BroadcastLogs(conn, h.Client, containerName)
+	go func() {
+		actions.BroadcastLogs(conn, h.Client, containerName)
+		time.Sleep(time.Duration(1/h.LogsFrequency) * time.Millisecond)
+	}()
 
 	select {}
 }

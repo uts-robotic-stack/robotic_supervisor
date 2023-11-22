@@ -1,10 +1,13 @@
 package actions
 
 import (
+	"encoding/json"
+
 	containerService "github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/device"
 	"github.com/containrrr/watchtower/pkg/filters"
 	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,4 +25,15 @@ func GetDeviceInfo(client containerService.Client) types.Device {
 		}
 	}
 	return *device
+}
+
+func BroadcastHardwareStatus(conn *websocket.Conn, client containerService.Client) {
+	for {
+		resources, err := device.GetHardwareStatus()
+		if err != nil {
+			return
+		}
+		data, _ := json.Marshal(resources)
+		conn.WriteMessage(websocket.TextMessage, data)
+	}
 }

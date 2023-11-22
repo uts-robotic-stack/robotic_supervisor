@@ -12,4 +12,8 @@ type Device struct {
 }
 
 type HardwareStatus struct {
+	Cpu         float64 `json:"cpu"`
+	Ram         float64 `json:"ram"`
+	Temperature float64 `json:"temperature"`
+	Storage     float64 `json:"storage"`
 }
