@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/containrrr/watchtower/internal/actions"
 	"github.com/containrrr/watchtower/pkg/container"
@@ -34,8 +33,7 @@ func (d *DeviceHandler) HandlerWSHardwareStatus(c *gin.Context) {
 	}
 	defer conn.Close()
 	go func() {
-		actions.BroadcastHardwareStatus(conn, d.Client)
-		time.Sleep(time.Duration(1/d.HardwareStatusFrequency) * time.Millisecond)
+		actions.BroadcastHardwareStatus(conn, d.Client, d.HardwareStatusFrequency)
 	}()
 	select {}
 }

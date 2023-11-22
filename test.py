@@ -23,7 +23,7 @@ def run_forever():
 if __name__ == "__main__":
     token = "robotics"  # Replace with your authentication token
     header = {"Authorization": f"Bearer {token}"}
-    ws = websocket.WebSocketApp("ws://localhost:8080/api/v1/watchtower/logs?container=watchtower",
+    ws = websocket.WebSocketApp("ws://localhost:8080/api/v1/device/hardware-status",
                               header=header,
                               on_message=on_message,
                               on_error=on_error,

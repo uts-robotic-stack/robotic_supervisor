@@ -3,7 +3,6 @@ package handlers
 import (
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/containrrr/watchtower/internal/actions"
 	"github.com/containrrr/watchtower/pkg/container"
@@ -38,8 +37,7 @@ func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {
 	containerName := c.Query("container")
 	// Iterate through each container and retrieve its logs
 	go func() {
-		actions.BroadcastLogs(conn, h.Client, containerName)
-		time.Sleep(time.Duration(1/h.LogsFrequency) * time.Millisecond)
+		actions.BroadcastLogs(conn, h.Client, containerName, h.LogsFrequency)
 	}()
 
 	select {}

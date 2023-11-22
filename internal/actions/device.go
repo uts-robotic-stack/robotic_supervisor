@@ -2,6 +2,7 @@ package actions
 
 import (
 	"encoding/json"
+	"time"
 
 	containerService "github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/device"
@@ -27,7 +28,7 @@ func GetDeviceInfo(client containerService.Client) types.Device {
 	return *device
 }
 
-func BroadcastHardwareStatus(conn *websocket.Conn, client containerService.Client) {
+func BroadcastHardwareStatus(conn *websocket.Conn, client containerService.Client, freq float64) {
 	for {
 		resources, err := device.GetHardwareStatus()
 		if err != nil {
@@ -35,5 +36,6 @@ func BroadcastHardwareStatus(conn *websocket.Conn, client containerService.Clien
 		}
 		data, _ := json.Marshal(resources)
 		conn.WriteMessage(websocket.TextMessage, data)
+		time.Sleep(time.Duration(1/freq) * time.Second)
 	}
 }

@@ -3,6 +3,7 @@ package actions
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	containerService "github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/filters"
@@ -39,7 +40,7 @@ func StopContainer(client containerService.Client, service *containerService.Ser
 }
 
 // broadcastLogs reads logs from a Docker container and sends them to the WebSocket connection.
-func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name string) {
+func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name string, freq float64) {
 	containers, _ := client.ListContainers(filters.NoFilter)
 	var container types.Container
 	foundContainer := false
@@ -70,6 +71,7 @@ func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name st
 		if err != nil {
 			return
 		}
+		time.Sleep(time.Duration(1/freq) * time.Second)
 	}
 }
 
