@@ -22,7 +22,7 @@ func SetRoutes(router *gin.Engine,
 		{
 			watchtowerSubgroup.POST("/update", watchtowerHandler.HandlePostUpdate)
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
-			watchtowerSubgroup.GET("/logs", containerHandler.HandleStreamLogs)
+			watchtowerSubgroup.GET("/logs", containerHandler.HandlerLogs)
 		}
 	}
 }

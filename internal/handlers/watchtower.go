@@ -42,7 +42,6 @@ func (w *WatchtowerHandler) HandlePostUpdate(c *gin.Context) {
 		}()
 		log.Info("Received HTTP request to apply updates")
 		imagesParams := c.Query("images")
-
 		images := strings.Split(imagesParams, ",")
 
 		// By default do not apply any filter
@@ -80,8 +79,8 @@ func (w *WatchtowerHandler) HandlePostUpdate(c *gin.Context) {
 		c.JSON(http.StatusOK, metricResults)
 
 	default:
-		log.Info("Skipped. Another docker process is already running.")
-		c.JSON(http.StatusConflict, "Request dropped. Another docker process is already running.")
+		log.Info("Skipped. Another update process is already running.")
+		c.JSON(http.StatusConflict, "Request dropped. Another update process is already running.")
 	}
 }
 
@@ -124,7 +123,7 @@ func (w *WatchtowerHandler) HandlePostDownload(c *gin.Context) {
 		c.JSON(http.StatusOK, nil)
 
 	default:
-		log.Info("Skipped. Another docker process is already running.")
-		c.JSON(http.StatusConflict, "Request dropped. Another docker process is already running.")
+		log.Info("Skipped. Another download process is already running.")
+		c.JSON(http.StatusConflict, "Request dropped. Another download process is already running.")
 	}
 }

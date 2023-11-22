@@ -21,7 +21,6 @@ import (
 	"github.com/containrrr/watchtower/pkg/notifications"
 	t "github.com/containrrr/watchtower/pkg/types"
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
 
@@ -215,12 +214,10 @@ func Run(c *cobra.Command, names []string) {
 
 	deviceHandler := handlers.DeviceHandler{
 		Client: &client,
-		Lock:   clientLock,
 	}
 
 	containerHandler := handlers.ContainerHandler{
-		Client: &client,
-		Lock:   clientLock,
+		Client: client,
 	}
 
 	// Set routes
@@ -453,13 +450,6 @@ func runServicesHandle(servicesConfig map[string]interface{}) {
 				log.Error(err)
 			}
 		}
-	}
-}
-
-func runLogStreaming(name string, conn *websocket.Conn) {
-	log.Infof("Streaming logs of container %s", name)
-	if err := actions.StreamLogs(client, name, true, 60*time.Second, conn); err != nil {
-		log.Error(err)
 	}
 }
 

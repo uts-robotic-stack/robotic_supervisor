@@ -1,5 +1,6 @@
 import websocket
-
+import threading
+import time
 
 def on_message(ws, message):
     print(f"Received: {message}")
@@ -16,6 +17,9 @@ def on_close(ws, c ,a):
 def on_open(ws):
     print("### Connected ###")
 
+def run_forever():
+    ws.run_forever()
+
 if __name__ == "__main__":
     token = "robotics"  # Replace with your authentication token
     header = {"Authorization": f"Bearer {token}"}
@@ -25,10 +29,11 @@ if __name__ == "__main__":
                               on_error=on_error,
                               on_close=on_close)
     ws.on_open = on_open
-    try:
-        while True:
-            ws.run_forever()
-
-    except KeyboardInterrupt:
-        print("Keyboard interrupt detected. Closing connection.")
-        ws.close()
+    run_forever()
+    # threading.Thread(target=run_forever)
+    # try:
+    #     while True:
+    #         time.sleep(0.1)
+    # except KeyboardInterrupt:
+    #     print("Keyboard interrupt detected. Closing connection.")
+    #     ws.close()
