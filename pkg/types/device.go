@@ -10,3 +10,10 @@ type Device struct {
 	InternetStatus    string `json:"internet_status"`
 	SupervisorRelease string `json:"supervisor_release"`
 }
+
+type HardwareStatus struct {
+	Cpu         float64 `json:"cpu"`
+	Ram         float64 `json:"ram"`
+	Temperature float64 `json:"temperature"`
+	Storage     float64 `json:"storage"`
+}

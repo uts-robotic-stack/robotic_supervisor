@@ -737,9 +737,8 @@ func (client dockerClient) PullImage(container t.Container) error {
 }
 
 func (client dockerClient) StreamLogs(c t.Container, follow bool) (io.ReadCloser, error) {
-	bg := context.Background()
-	out, err := client.api.ContainerLogs(bg, c.ContainerInfo().ID, types.ContainerLogsOptions{
-		ShowStdout: true, ShowStderr: true, Follow: true})
+	out, err := client.api.ContainerLogs(context.Background(), c.ContainerInfo().ID, types.ContainerLogsOptions{
+		ShowStdout: true, ShowStderr: true, Follow: follow, Details: true})
 	if err != nil {
 		return nil, err
 	}

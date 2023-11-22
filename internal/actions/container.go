@@ -1,12 +1,8 @@
 package actions
 
 import (
-	"bufio"
-	"context"
-	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	containerService "github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/filters"
@@ -42,7 +38,8 @@ func StopContainer(client containerService.Client, service *containerService.Ser
 	return nil
 }
 
-func StreamLogs(client containerService.Client, name string, follow bool, timeOut time.Duration, conn *websocket.Conn) error {
+// broadcastLogs reads logs from a Docker container and sends them to the WebSocket connection.
+func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name string) {
 	containers, _ := client.ListContainers(filters.NoFilter)
 	var container types.Container
 	foundContainer := false
@@ -53,34 +50,25 @@ func StreamLogs(client containerService.Client, name string, follow bool, timeOu
 		}
 	}
 	if !foundContainer {
-		return errors.New("Cannot find container with given name: " + name)
+		return
 	}
 
-	reader, err := client.StreamLogs(container, follow)
+	logs, err := client.StreamLogs(container, true)
 	if err != nil {
-		return err
+		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeOut) // Set your desired timeout here
-	defer cancel()
-	defer reader.Close()
+	defer logs.Close()
 
-	rd := bufio.NewReader(reader)
+	buf := make([]byte, 4096)
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			str, _, err := rd.ReadLine()
-			if err != nil {
-				return err
-			}
-			if err := conn.WriteMessage(websocket.TextMessage, str); err != nil {
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					return nil
-				} else {
-					return err
-				}
-			}
+		n, err := logs.Read(buf)
+		if err != nil {
+			break
+		}
+
+		err = conn.WriteMessage(websocket.TextMessage, buf[:n])
+		if err != nil {
+			return
 		}
 	}
 }
