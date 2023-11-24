@@ -189,6 +189,8 @@ func Run(c *cobra.Command, names []string) {
 
 	// Create a new Gin router
 	router := gin.Default()
+	// Add CORS middleware
+	router.Use(middleware.CORSMiddleware())
 	// Add authentication
 	router.Use(middleware.AuthMiddleware(apiToken))
 
