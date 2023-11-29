@@ -35,7 +35,10 @@ func BroadcastHardwareStatus(conn *websocket.Conn, client containerService.Clien
 			return
 		}
 		data, _ := json.Marshal(resources)
-		conn.WriteMessage(websocket.TextMessage, data)
+		err = conn.WriteMessage(websocket.TextMessage, data)
+		if err != nil {
+			return
+		}
 		time.Sleep(time.Duration(1/freq) * time.Second)
 	}
 }

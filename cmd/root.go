@@ -176,23 +176,21 @@ func Run(c *cobra.Command, names []string) {
 		logNotifyExit(err)
 	}
 
-	// Run update once startup to check and download updates from the cloud
-	if updateOnStartup {
-		runCheckForUpdates(filter)
-		metric := runUpdatesWithNotifications(filter)
-		metrics.RegisterScan(metric)
-	}
-
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
 	clientLock := make(chan bool, 1)
 	clientLock <- true
 
 	// Create a new Gin router
-	router := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	// Use default recovery
+	router.Use(gin.Recovery())
 	// Add CORS middleware
 	router.Use(middleware.CORSMiddleware())
 	// Add authentication
 	router.Use(middleware.AuthMiddleware(apiToken))
+	// Add logging
+	router.Use(middleware.Logger())
 
 	// Create handlers
 	watchtowerHandler := handlers.WatchtowerHandler{
@@ -219,18 +217,23 @@ func Run(c *cobra.Command, names []string) {
 		HardwareStatusFrequency: 0.1, // Once every 10 seconds
 	}
 
-	containerHandler := handlers.ContainerHandler{
-		Client:        client,
-		LogsFrequency: 10, // 10 Hz
-	}
+	containerHandler := handlers.NewContainerHandler(client, 0.2)
 
 	// Set routes
-	api.SetRoutes(router, &deviceHandler, &watchtowerHandler, &containerHandler)
+	api.SetRoutes(router, &deviceHandler, &watchtowerHandler, containerHandler)
 
+	log.Infof("Serving api at port %v", port)
 	// Start api
 	go func() {
 		router.Run(":" + port)
 	}()
+
+	// Run update once startup to check and download updates from the cloud
+	if updateOnStartup {
+		runCheckForUpdates(filter)
+		metric := runUpdatesWithNotifications(filter)
+		metrics.RegisterScan(metric)
+	}
 
 	if err := runChecksOnSchedule(c, filter, filterDesc, clientLock); err != nil {
 		log.Error(err)
@@ -428,47 +431,4 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		"Failed":  metricResults.Failed,
 	}).Info("Session done")
 	return metricResults
-}
-
-func runServicesHandle(servicesConfig map[string]interface{}) {
-	log.Info("Running service handle")
-	services := []container.Service{}
-	rawServiceData := servicesConfig["services"].(map[string]interface{})
-
-	// Extract services from the raw data
-	for name, config := range rawServiceData {
-		service := container.MakeService(config.(map[string]interface{}), name)
-		services = append(services, service)
-	}
-
-	// Execute actions on the services
-	for _, service := range services {
-		if service.Action == container.ActionRun {
-			log.Infof("Creating and starting service %s", service.Name)
-			if err := actions.RunContainer(client, &service); err != nil {
-				log.Error(err)
-			}
-		} else if service.Action == container.ActionStop {
-			log.Infof("Stopping and removing service %s", service.Name)
-			if err := actions.StopContainer(client, &service); err != nil {
-				log.Error(err)
-			}
-		}
-	}
-}
-
-func runListContainers() []string {
-	containerNames := make([]string, 0)
-	containers, err := client.ListContainers(filters.NoFilter)
-	if err != nil {
-		log.Error(err)
-		return containerNames
-	}
-	for _, container := range containers {
-		if container.IsWatchtower() {
-			continue
-		}
-		containerNames = append(containerNames, container.Name()[1:])
-	}
-	return containerNames
 }

@@ -31,9 +31,11 @@ func (d *DeviceHandler) HandlerWSHardwareStatus(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
-	go func() {
-		actions.BroadcastHardwareStatus(conn, d.Client, d.HardwareStatusFrequency)
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Error("Unable to close websocket connection")
+		}
+		log.Info("Connection closed")
 	}()
-	select {}
+	actions.BroadcastHardwareStatus(conn, d.Client, d.HardwareStatusFrequency)
 }

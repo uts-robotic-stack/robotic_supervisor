@@ -1,6 +1,9 @@
 package actions
 
 import (
+	"bytes"
+	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -8,14 +11,16 @@ import (
 	containerService "github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/filters"
 	"github.com/containrrr/watchtower/pkg/types"
+	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/go-connections/nat"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 )
 
-func RunContainer(client containerService.Client, service *containerService.Service) error {
+func StartContainer(client containerService.Client, service *containerService.Service) error {
 	// Create config
 	containerConfig, networkConfig, hostConfig := makeContainerCreateOptions(service, nil)
 	_, err := client.StartContainer(
@@ -39,6 +44,52 @@ func StopContainer(client containerService.Client, service *containerService.Ser
 	return nil
 }
 
+func InspectContainer(client containerService.Client, name string) (dockerTypes.ContainerJSON, error) {
+	containers, _ := client.ListContainers(filters.NoFilter)
+	var container types.Container
+	foundContainer := false
+	for _, cnt := range containers {
+		if cnt.Name()[1:] == name {
+			container = cnt
+			foundContainer = true
+		}
+	}
+	if !foundContainer {
+		return dockerTypes.ContainerJSON{}, errors.New("cannot find container")
+	}
+	return *container.ContainerInfo(), nil
+}
+
+// broadcastLogs reads logs from a Docker container and sends them to the WebSocket connection.
+func GetLogs(client containerService.Client, name string) ([]byte, error) {
+	output := make([]byte, 0)
+	containers, _ := client.ListContainers(filters.NoFilter)
+	var container types.Container
+	foundContainer := false
+	for _, cnt := range containers {
+		if cnt.Name()[1:] == name {
+			container = cnt
+			foundContainer = true
+		}
+	}
+	if !foundContainer {
+		return output, errors.New("cannot find container")
+	}
+
+	logs, err := client.StreamLogs(container, false)
+	if err != nil {
+		return output, err
+	}
+	defer logs.Close()
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, logs)
+	if err != nil {
+		return output, err
+	}
+	return buf.Bytes(), nil
+}
+
 // broadcastLogs reads logs from a Docker container and sends them to the WebSocket connection.
 func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name string, freq float64) {
 	containers, _ := client.ListContainers(filters.NoFilter)
@@ -54,21 +105,25 @@ func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name st
 		return
 	}
 
-	logs, err := client.StreamLogs(container, true)
-	if err != nil {
-		return
-	}
-	defer logs.Close()
-
-	buf := make([]byte, 4096)
 	for {
-		n, err := logs.Read(buf)
+		logs, err := client.StreamLogs(container, false)
 		if err != nil {
-			break
+			return
 		}
+		defer logs.Close()
 
-		err = conn.WriteMessage(websocket.TextMessage, buf[:n])
+		var buf bytes.Buffer
+		_, err = io.Copy(&buf, logs)
 		if err != nil {
+			logs.Close()
+			return
+		}
+		logs.Close()
+
+		err = conn.WriteMessage(websocket.TextMessage, buf.Bytes())
+		if err != nil {
+			logs.Close()
+			log.Error("Error writing websocket message")
 			return
 		}
 		time.Sleep(time.Duration(1/freq) * time.Second)
