@@ -17,4 +17,4 @@
 #     }
 # }' http://localhost:8080/api/v1/watchtower/start
 
-curl -H "Authorization: Bearer robotics" --request GET  http://localhost:8080/api/v1/watchtower/logs?container=watchtower
+curl -H "Authorization: Bearer robotics" --request GET  http://localhost:8080/api/v1/watchtower/inspect?container=watchtower

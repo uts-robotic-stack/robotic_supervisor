@@ -105,14 +105,23 @@ func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name st
 		return
 	}
 
-	for {
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Error("Unable to close websocket connection")
+		}
+		log.Info("Connection closed")
+	}()
+	var buf bytes.Buffer
+
+	ticker := time.NewTicker(time.Duration((1/freq)*1000) * time.Millisecond) // Adjust the duration as needed
+	defer ticker.Stop()
+
+	for range ticker.C {
 		logs, err := client.StreamLogs(container, false)
 		if err != nil {
 			return
 		}
-		defer logs.Close()
 
-		var buf bytes.Buffer
 		_, err = io.Copy(&buf, logs)
 		if err != nil {
 			logs.Close()
@@ -126,7 +135,7 @@ func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name st
 			log.Error("Error writing websocket message")
 			return
 		}
-		time.Sleep(time.Duration(1/freq) * time.Second)
+		buf.Reset()
 	}
 }
 

@@ -217,7 +217,7 @@ func Run(c *cobra.Command, names []string) {
 		HardwareStatusFrequency: 0.1, // Once every 10 seconds
 	}
 
-	containerHandler := handlers.NewContainerHandler(client, 0.2)
+	containerHandler := handlers.NewContainerHandler(client, 1)
 
 	// Set routes
 	api.SetRoutes(router, &deviceHandler, &watchtowerHandler, containerHandler)

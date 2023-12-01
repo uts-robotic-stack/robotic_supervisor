@@ -29,6 +29,13 @@ func GetDeviceInfo(client containerService.Client) types.Device {
 }
 
 func BroadcastHardwareStatus(conn *websocket.Conn, client containerService.Client, freq float64) {
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Error("Unable to close websocket connection")
+		}
+		log.Info("Connection closed")
+	}()
+
 	for {
 		resources, err := device.GetHardwareStatus()
 		if err != nil {

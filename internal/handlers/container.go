@@ -14,6 +14,7 @@ import (
 type ContainerHandler struct {
 	client        container.Client
 	logsFrequency float64
+	wsClients     ClientList
 	sync.Mutex
 }
 
@@ -21,6 +22,29 @@ func NewContainerHandler(client container.Client, logFreq float64) *ContainerHan
 	return &ContainerHandler{
 		client:        client,
 		logsFrequency: logFreq,
+		wsClients:     make(ClientList),
+	}
+}
+
+// addClient will add clients to our clientList
+func (h *ContainerHandler) addClient(client *Client) {
+	// Lock so we can manipulate
+	h.Lock()
+	defer h.Unlock()
+	// Add Client
+	h.wsClients[client] = true
+}
+
+// removeClient will remove the client and clean up
+func (h *ContainerHandler) removeClient(client *Client) {
+	h.Lock()
+	defer h.Unlock()
+	// Check if Client exists, then delete it
+	if _, ok := h.wsClients[client]; ok {
+		// close connection
+		client.connection.Close()
+		// remove
+		delete(h.wsClients, client)
 	}
 }
 
@@ -34,14 +58,13 @@ func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	defer func() {
-		if err := conn.Close(); err != nil {
-			log.Error("Unable to close websocket connection")
-		}
-		log.Info("Connection closed")
-	}()
+
+	client := NewWSClient(conn, h)
+	h.addClient(client)
+
 	containerName := c.Query("container")
-	actions.BroadcastLogs(conn, h.client, containerName, h.logsFrequency)
+	go client.readMessages()
+	go client.broadcastLogs(containerName)
 }
 
 func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
