@@ -1,9 +1,9 @@
 package actions
 
 import (
-	"bufio"
-	"context"
+	"bytes"
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -11,14 +11,16 @@ import (
 	containerService "github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/filters"
 	"github.com/containrrr/watchtower/pkg/types"
+	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/go-connections/nat"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 )
 
-func RunContainer(client containerService.Client, service *containerService.Service) error {
+func StartContainer(client containerService.Client, service *containerService.Service) error {
 	// Create config
 	containerConfig, networkConfig, hostConfig := makeContainerCreateOptions(service, nil)
 	_, err := client.StartContainer(
@@ -42,7 +44,7 @@ func StopContainer(client containerService.Client, service *containerService.Ser
 	return nil
 }
 
-func StreamLogs(client containerService.Client, name string, follow bool, timeOut time.Duration, conn *websocket.Conn) error {
+func InspectContainer(client containerService.Client, name string) (dockerTypes.ContainerJSON, error) {
 	containers, _ := client.ListContainers(filters.NoFilter)
 	var container types.Container
 	foundContainer := false
@@ -53,35 +55,87 @@ func StreamLogs(client containerService.Client, name string, follow bool, timeOu
 		}
 	}
 	if !foundContainer {
-		return errors.New("Cannot find container with given name: " + name)
+		return dockerTypes.ContainerJSON{}, errors.New("cannot find container")
 	}
+	return *container.ContainerInfo(), nil
+}
 
-	reader, err := client.StreamLogs(container, follow)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeOut) // Set your desired timeout here
-	defer cancel()
-	defer reader.Close()
-
-	rd := bufio.NewReader(reader)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			str, _, err := rd.ReadLine()
-			if err != nil {
-				return err
-			}
-			if err := conn.WriteMessage(websocket.TextMessage, str); err != nil {
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					return nil
-				} else {
-					return err
-				}
-			}
+// broadcastLogs reads logs from a Docker container and sends them to the WebSocket connection.
+func GetLogs(client containerService.Client, name string) ([]byte, error) {
+	output := make([]byte, 0)
+	containers, _ := client.ListContainers(filters.NoFilter)
+	var container types.Container
+	foundContainer := false
+	for _, cnt := range containers {
+		if cnt.Name()[1:] == name {
+			container = cnt
+			foundContainer = true
 		}
+	}
+	if !foundContainer {
+		return output, errors.New("cannot find container")
+	}
+
+	logs, err := client.StreamLogs(container, false)
+	if err != nil {
+		return output, err
+	}
+	defer logs.Close()
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, logs)
+	if err != nil {
+		return output, err
+	}
+	return buf.Bytes(), nil
+}
+
+// broadcastLogs reads logs from a Docker container and sends them to the WebSocket connection.
+func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name string, freq float64) {
+	containers, _ := client.ListContainers(filters.NoFilter)
+	var container types.Container
+	foundContainer := false
+	for _, cnt := range containers {
+		if cnt.Name()[1:] == name {
+			container = cnt
+			foundContainer = true
+		}
+	}
+	if !foundContainer {
+		return
+	}
+
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Error("Unable to close websocket connection")
+		}
+		log.Info("Connection closed")
+	}()
+	var buf bytes.Buffer
+
+	ticker := time.NewTicker(time.Duration((1/freq)*1000) * time.Millisecond) // Adjust the duration as needed
+	defer ticker.Stop()
+
+	for range ticker.C {
+		logs, err := client.StreamLogs(container, false)
+		if err != nil {
+			return
+		}
+
+		_, err = io.Copy(&buf, logs)
+		if err != nil {
+			logs.Close()
+			return
+		}
+		logs.Close()
+
+		err = conn.WriteMessage(websocket.TextMessage, buf.Bytes())
+		if err != nil {
+			logs.Close()
+			log.Error("Error writing websocket message")
+			return
+		}
+		buf.Reset()
 	}
 }
 

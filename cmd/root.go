@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"errors"
 	"math"
-	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -12,18 +10,17 @@ import (
 	"time"
 
 	"github.com/containrrr/watchtower/internal/actions"
+	"github.com/containrrr/watchtower/internal/api"
 	"github.com/containrrr/watchtower/internal/flags"
+	"github.com/containrrr/watchtower/internal/handlers"
 	"github.com/containrrr/watchtower/internal/meta"
-	"github.com/containrrr/watchtower/pkg/api"
-	containerHandler "github.com/containrrr/watchtower/pkg/api/container"
-	apiMetrics "github.com/containrrr/watchtower/pkg/api/metrics"
-	"github.com/containrrr/watchtower/pkg/api/update"
+	"github.com/containrrr/watchtower/internal/middleware"
 	"github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/filters"
 	"github.com/containrrr/watchtower/pkg/metrics"
 	"github.com/containrrr/watchtower/pkg/notifications"
 	t "github.com/containrrr/watchtower/pkg/types"
-	"github.com/gorilla/websocket"
+	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
 
@@ -140,9 +137,9 @@ func PreRun(cmd *cobra.Command, _ []string) {
 func Run(c *cobra.Command, names []string) {
 	filter, filterDesc := filters.BuildFilter(names, disableContainers, enableLabel, scope)
 	runOnce, _ := c.PersistentFlags().GetBool("run-once")
-	enableUpdateAPI, _ := c.PersistentFlags().GetBool("http-api-update")
-	enableMetricsAPI, _ := c.PersistentFlags().GetBool("http-api-metrics")
-	unblockHTTPAPI, _ := c.PersistentFlags().GetBool("http-api-periodic-polls")
+	// enableUpdateAPI, _ := c.PersistentFlags().GetBool("http-api-update")
+	// enableMetricsAPI, _ := c.PersistentFlags().GetBool("http-api-metrics")
+	// unblockHTTPAPI, _ := c.PersistentFlags().GetBool("http-api-periodic-polls")
 	apiToken, _ := c.PersistentFlags().GetString("http-api-token")
 	healthCheck, _ := c.PersistentFlags().GetBool("health-check")
 	port, _ := c.PersistentFlags().GetString("port")
@@ -179,6 +176,58 @@ func Run(c *cobra.Command, names []string) {
 		logNotifyExit(err)
 	}
 
+	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
+	clientLock := make(chan bool, 1)
+	clientLock <- true
+
+	// Create a new Gin router
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	// Use default recovery
+	router.Use(gin.Recovery())
+	// Add CORS middleware
+	router.Use(middleware.CORSMiddleware())
+	// Add authentication
+	router.Use(middleware.AuthMiddleware(apiToken))
+	// Add logging
+	router.Use(middleware.Logger())
+
+	// Create handlers
+	watchtowerHandler := handlers.WatchtowerHandler{
+		Client:            &client,
+		Filter:            filter,
+		Notifier:          notifier,
+		ScheduleSpec:      scheduleSpec,
+		Cleanup:           cleanup,
+		NoRestart:         noRestart,
+		NoPull:            noPull,
+		MonitorOnly:       monitorOnly,
+		EnableLabel:       enableLabel,
+		DisableContainers: disableContainers,
+		Timeout:           timeout,
+		LifecycleHooks:    lifecycleHooks,
+		RollingRestart:    rollingRestart,
+		Scope:             scope,
+		LabelPrecedence:   labelPrecedence,
+		Lock:              clientLock,
+	}
+
+	deviceHandler := handlers.DeviceHandler{
+		Client:                  client,
+		HardwareStatusFrequency: 0.1, // Once every 10 seconds
+	}
+
+	containerHandler := handlers.NewContainerHandler(client, 1)
+
+	// Set routes
+	api.SetRoutes(router, &deviceHandler, &watchtowerHandler, containerHandler)
+
+	log.Infof("Serving api at port %v", port)
+	// Start api
+	go func() {
+		router.Run(":" + port)
+	}()
+
 	// Run update once startup to check and download updates from the cloud
 	if updateOnStartup {
 		runCheckForUpdates(filter)
@@ -186,48 +235,7 @@ func Run(c *cobra.Command, names []string) {
 		metrics.RegisterScan(metric)
 	}
 
-	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
-	updateLock := make(chan bool, 1)
-	updateLock <- true
-
-	httpAPI := api.New(apiToken)
-
-	if enableUpdateAPI {
-		updateHandler := update.New(func(images []string) {
-			metric := runUpdatesWithNotifications(filters.FilterByImage(images, filter))
-			metrics.RegisterScan(metric)
-		}, updateLock)
-		httpAPI.RegisterFunc(updateHandler.Path, updateHandler.Handle)
-		// If polling isn't enabled the scheduler is never started, and
-		// we need to trigger the startup messages manually.
-		if !unblockHTTPAPI {
-			writeStartupMessage(c, time.Time{}, filterDesc)
-		}
-	}
-
-	cHTTPHandler := containerHandler.New(func(servicesConfig map[string]interface{}) {
-		runServicesHandle(servicesConfig)
-	}, func() []string {
-		return runListContainers()
-	}, updateLock)
-	httpAPI.RegisterFunc(cHTTPHandler.Path, cHTTPHandler.Handle)
-
-	// Websocket for streaming logs
-	logStreamingWS := containerHandler.NewWSHandler(func(name string, conn *websocket.Conn) {
-		runLogStreaming(name, conn)
-	})
-	httpAPI.RegisterWebsocketHandler(logStreamingWS.Path, logStreamingWS.Handle)
-
-	if enableMetricsAPI {
-		metricsHandler := apiMetrics.New()
-		httpAPI.RegisterHandler(metricsHandler.Path, metricsHandler.Handle)
-	}
-
-	if err := httpAPI.Start(enableUpdateAPI && !unblockHTTPAPI, port); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Error("failed to start API", err)
-	}
-
-	if err := runChecksOnSchedule(c, filter, filterDesc, updateLock); err != nil {
+	if err := runChecksOnSchedule(c, filter, filterDesc, clientLock); err != nil {
 		log.Error(err)
 	}
 
@@ -423,54 +431,4 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		"Failed":  metricResults.Failed,
 	}).Info("Session done")
 	return metricResults
-}
-
-func runServicesHandle(servicesConfig map[string]interface{}) {
-	log.Info("Running service handle")
-	services := []container.Service{}
-	rawServiceData := servicesConfig["services"].(map[string]interface{})
-
-	// Extract services from the raw data
-	for name, config := range rawServiceData {
-		service := container.MakeService(config.(map[string]interface{}), name)
-		services = append(services, service)
-	}
-
-	// Execute actions on the services
-	for _, service := range services {
-		if service.Action == container.ActionRun {
-			log.Infof("Creating and starting service %s", service.Name)
-			if err := actions.RunContainer(client, &service); err != nil {
-				log.Error(err)
-			}
-		} else if service.Action == container.ActionStop {
-			log.Infof("Stopping and removing service %s", service.Name)
-			if err := actions.StopContainer(client, &service); err != nil {
-				log.Error(err)
-			}
-		}
-	}
-}
-
-func runLogStreaming(name string, conn *websocket.Conn) {
-	log.Infof("Streaming logs of container %s", name)
-	if err := actions.StreamLogs(client, name, true, 60*time.Second, conn); err != nil {
-		log.Error(err)
-	}
-}
-
-func runListContainers() []string {
-	containerNames := make([]string, 0)
-	containers, err := client.ListContainers(filters.NoFilter)
-	if err != nil {
-		log.Error(err)
-		return containerNames
-	}
-	for _, container := range containers {
-		if container.IsWatchtower() {
-			continue
-		}
-		containerNames = append(containerNames, container.Name()[1:])
-	}
-	return containerNames
 }

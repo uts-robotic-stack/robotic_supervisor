@@ -35,36 +35,36 @@ type Network struct {
 }
 
 type Service struct {
-	Name          string
-	Action        string
-	Hostname      string
-	User          string
-	CapAdd        []string
-	CapDrop       []string
-	BuildOpt      ServiceBuild
-	CgroupParent  string
-	Command       ShellCommand
-	ContainerName string
-	Domainname    string
-	DependsOn     []string
-	Devices       []string
-	EntryPoint    ShellCommand
-	Environment   []string
-	EnvFile       []string
-	Expose        []string
-	ExtraHosts    []string
-	IpcMode       string
-	Resources     ServiceResources
-	Networks      []ServiceNetwork
-	NetworkMode   string
-	Ports         []ServicePort
-	Privileged    bool
-	Sysctls       map[string]string
-	Restart       string
-	Tty           bool
-	Volumes       []ServiceVolume
-	WorkingDir    string
-	Image         string
+	Name          string            `json:"name"`
+	Action        string            `json:"action"`
+	Hostname      string            `json:"hostname"`
+	User          string            `json:"user"`
+	CapAdd        []string          `json:"cap_add"`
+	CapDrop       []string          `json:"cap_drop"`
+	BuildOpt      ServiceBuild      `json:"build_opt"`
+	CgroupParent  string            `json:"cgroup_parent"`
+	Command       ShellCommand      `json:"command"`
+	ContainerName string            `json:"container_name"`
+	Domainname    string            `json:"domain_name"`
+	DependsOn     []string          `json:"depends_on"`
+	Devices       []string          `json:"devices"`
+	EntryPoint    ShellCommand      `json:"entrypoint"`
+	Environment   []string          `json:"environment"`
+	EnvFile       []string          `json:"env_file"`
+	Expose        []string          `json:"expose"`
+	ExtraHosts    []string          `json:"extra_hosts"`
+	IpcMode       string            `json:"ipc_mode"`
+	Resources     ServiceResources  `json:"resources"`
+	Networks      []ServiceNetwork  `json:"networks"`
+	NetworkMode   string            `json:"network_mode"`
+	Ports         []ServicePort     `json:"ports"`
+	Privileged    bool              `json:"privileged"`
+	Sysctls       map[string]string `json:"sysctls"`
+	Restart       string            `json:"restart"`
+	Tty           bool              `json:"tty"`
+	Volumes       []ServiceVolume   `json:"volumes"`
+	WorkingDir    string            `json:"working_dir"`
+	Image         string            `json:"image"`
 }
 
 type ServiceBuild struct {
@@ -119,7 +119,7 @@ const (
 )
 
 const (
-	ActionRun     = "run"
+	ActionRun     = "start"
 	ActionPause   = "pause"
 	ActionStop    = "stop"
 	ActionRestart = "restart"
