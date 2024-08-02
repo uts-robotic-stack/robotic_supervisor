@@ -19,7 +19,7 @@ func SetRoutes(router *gin.Engine,
 			deviceSubgroup.GET("/hardware-status", deviceHandler.HandlerWSHardwareStatus)
 		}
 
-		watchtowerSubgroup := v1.Group("/watchtower")
+		watchtowerSubgroup := v1.Group("/robotics_supervisor")
 		{
 			watchtowerSubgroup.POST("/update", watchtowerHandler.HandlePostUpdate)
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)

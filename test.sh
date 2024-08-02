@@ -15,6 +15,8 @@
 #             "action" : "start"
 #         }
 #     }
-# }' http://localhost:8080/api/v1/watchtower/start
+# }' http://localhost:8080/api/v1/robotics_supervisor/start
 
-curl -H "Authorization: Bearer robotics" --request GET  http://localhost:8080/api/v1/watchtower/inspect?container=watchtower
+# curl -H "Authorization: Bearer robotics" --request GET  http://localhost:8080/api/v1/robotics_supervisor/inspect?container=watchtower
+
+curl -H "Authorization: Bearer robotics" --request GET  http://localhost:8080/api/v1/device/info

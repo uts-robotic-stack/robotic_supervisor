@@ -19,10 +19,10 @@ func GetDeviceInfo(client containerService.Client) types.Device {
 	}
 	containers, _ := client.ListContainers(filters.NoFilter)
 	for _, container := range containers {
-		// Get watchtower release
+		// Get supervisor release
 		if container.IsWatchtower() && container.HasImageInfo() {
-			device.SupervisorRelease = container.ImageInfo().ID
-			continue
+			device.SoftwareVersion = container.ImageInfo().ID
+			break
 		}
 	}
 	return *device

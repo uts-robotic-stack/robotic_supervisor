@@ -15,11 +15,12 @@ COPY go.sum .
 RUN go mod download
 
 RUN apk add --no-cache \
-    alpine-sdk \
-    ca-certificates \
-    git \
-    tzdata \
-    libusb-dev
+  alpine-sdk \
+  ca-certificates \
+  git \
+  tzdata \
+  libusb-dev \
+  procps
 
 COPY . /watchtower
 
@@ -38,6 +39,10 @@ FROM scratch
 LABEL "com.centurylinklabs.watchtower"="true"
 
 # copy files from other container
+COPY --from=builder /bin /bin
+COPY --from=builder /lib /lib
+COPY --from=builder /usr /usr
+COPY --from=builder /etc /etc
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /watchtower/watchtower /watchtower
