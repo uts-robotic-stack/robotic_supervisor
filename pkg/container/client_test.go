@@ -1,8 +1,9 @@
 package container
 
 import (
-	"github.com/docker/docker/api/types/network"
 	"time"
+
+	"github.com/docker/docker/api/types/network"
 
 	"github.com/containrrr/watchtower/internal/util"
 	"github.com/containrrr/watchtower/pkg/container/mocks"

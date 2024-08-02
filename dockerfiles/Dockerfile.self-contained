@@ -8,18 +8,18 @@ FROM golang:alpine as builder
 ARG WATCHTOWER_VERSION=develop
 
 RUN apk add --no-cache \
-    alpine-sdk \
-    ca-certificates \
-    git \
-    tzdata \
-    libusb-1.0
+  alpine-sdk \
+  ca-certificates \
+  git \
+  tzdata \
+  libusb-1.0
 
-RUN git clone --branch "${WATCHTOWER_VERSION}" https://github.com/dkhoanguyen/watchtower.git
+RUN git clone --branch "${WATCHTOWER_VERSION}" https://github.com/containrrr/watchtower.git
 
 RUN \
   cd watchtower && \
   \
-  GO111MODULE=on CGO_ENABLED=1 GOOS=linux go build -a -ldflags "-extldflags '-static' -X github.com/dkhoanguyen/watchtower/internal/meta.Version=$(git describe --tags)" . && \
+  GO111MODULE=on CGO_ENABLED=1 GOOS=linux go build -a -ldflags "-extldflags '-static' -X github.com/containrrr/watchtower/internal/meta.Version=$(git describe --tags)" . && \
   GO111MODULE=on go test ./... -v
 
 

@@ -11,4 +11,4 @@ docker run -d --name "watchtower" \
   -e WATCHTOWER_HTTP_API_PERIODIC_POLLS=true \
   -p 8080:8080 \
   --label=com.centurylinklabs.watchtower.enable=false \
-  dkhoanguyen/watchtower:latest --interval 300 --http-api-update --port 8080 --update-on-startup
+  containrrr/watchtower:latest --interval 300 --http-api-update --port 8080 --update-on-startup

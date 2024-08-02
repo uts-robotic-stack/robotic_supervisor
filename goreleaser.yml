@@ -12,8 +12,7 @@ build:
   ldflags:
     - -s -w -X github.com/containrrr/watchtower/internal/meta.Version={{.Version}}
 archives:
-  - 
-    name_template: "{{.ProjectName}}_{{.Os}}_{{.Arch}}"
+  - name_template: "{{.ProjectName}}_{{.Os}}_{{.Arch}}"
     format: tar.gz
     replacements:
       arm: armhf
@@ -28,12 +27,11 @@ archives:
     files:
       - LICENSE.md
 dockers:
-  -
-    use_buildx: true
-    build_flag_templates: [ "--platform=linux/amd64" ]
+  - use_buildx: true
+    build_flag_templates: ["--platform=linux/amd64"]
     goos: linux
     goarch: amd64
-    goarm: ''
+    goarm: ""
     dockerfile: dockerfiles/Dockerfile
     image_templates:
       - containrrr/watchtower:amd64-{{ .Version }}
@@ -42,12 +40,11 @@ dockers:
       - ghcr.io/containrrr/watchtower:amd64-latest
     binaries:
       - watchtower
-  - 
-    use_buildx: true
-    build_flag_templates: [ "--platform=linux/386" ]
+  - use_buildx: true
+    build_flag_templates: ["--platform=linux/386"]
     goos: linux
     goarch: 386
-    goarm: ''
+    goarm: ""
     dockerfile: dockerfiles/Dockerfile
     image_templates:
       - containrrr/watchtower:i386-{{ .Version }}
@@ -56,9 +53,8 @@ dockers:
       - ghcr.io/containrrr/watchtower:i386-latest
     binaries:
       - watchtower
-  - 
-    use_buildx: true
-    build_flag_templates: [ "--platform=linux/arm/v6" ]
+  - use_buildx: true
+    build_flag_templates: ["--platform=linux/arm/v6"]
     goos: linux
     goarch: arm
     goarm: 6
@@ -70,12 +66,11 @@ dockers:
       - ghcr.io/containrrr/watchtower:armhf-latest
     binaries:
       - watchtower
-  - 
-    use_buildx: true
-    build_flag_templates: [ "--platform=linux/arm64/v8" ]
+  - use_buildx: true
+    build_flag_templates: ["--platform=linux/arm64/v8"]
     goos: linux
     goarch: arm64
-    goarm: ''
+    goarm: ""
     dockerfile: dockerfiles/Dockerfile
     image_templates:
       - containrrr/watchtower:arm64v8-{{ .Version }}

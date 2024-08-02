@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	containerService "github.com/containrrr/watchtower/pkg/container"
+	container "github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/device"
 	"github.com/containrrr/watchtower/pkg/filters"
 	"github.com/containrrr/watchtower/pkg/types"
@@ -12,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func GetDeviceInfo(client containerService.Client) types.Device {
+func GetDeviceInfo(client container.Client) types.Device {
 	device, err := device.MakeDevice()
 	if err != nil {
 		log.Error(err)
@@ -28,7 +28,7 @@ func GetDeviceInfo(client containerService.Client) types.Device {
 	return *device
 }
 
-func BroadcastHardwareStatus(conn *websocket.Conn, client containerService.Client, freq float64) {
+func BroadcastHardwareStatus(conn *websocket.Conn, client container.Client, freq float64) {
 	defer func() {
 		if err := conn.Close(); err != nil {
 			log.Error("Unable to close websocket connection")

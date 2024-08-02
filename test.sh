@@ -4,13 +4,13 @@
 #     "services": {
 #         "core": {
 #             "container_name": "core",
-#             "image" : "dkhoanguyen/robotic_base",
+#             "image" : "containrrr/robotic_base",
 #             "command": ["bash", "-c", "sleep infinity"],
 #             "action" : "start"
 #         },
 #         "test": {
 #             "container_name": "test",
-#             "image" : "dkhoanguyen/robotic_base",
+#             "image" : "containrrr/robotic_base",
 #             "command": ["bash", "-c", "sleep infinity"],
 #             "action" : "start"
 #         }
