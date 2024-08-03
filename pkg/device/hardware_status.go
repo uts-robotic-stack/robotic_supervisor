@@ -3,7 +3,7 @@ package device
 import (
 	"math/rand"
 
-	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/dkhoanguyen/watchtower/pkg/types"
 )
 
 func GetHardwareStatus() (types.HardwareStatus, error) {

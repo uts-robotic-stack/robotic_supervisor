@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/dkhoanguyen/watchtower/pkg/types"
 )
 
 const (

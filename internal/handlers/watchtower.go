@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containrrr/watchtower/internal/actions"
-	"github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/filters"
-	"github.com/containrrr/watchtower/pkg/metrics"
-	"github.com/containrrr/watchtower/pkg/notifications"
-	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/dkhoanguyen/watchtower/internal/actions"
+	"github.com/dkhoanguyen/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/pkg/filters"
+	"github.com/dkhoanguyen/watchtower/pkg/metrics"
+	"github.com/dkhoanguyen/watchtower/pkg/notifications"
+	"github.com/dkhoanguyen/watchtower/pkg/types"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 )

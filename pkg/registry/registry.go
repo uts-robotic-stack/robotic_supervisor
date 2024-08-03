@@ -1,9 +1,9 @@
 package registry
 
 import (
-	"github.com/containrrr/watchtower/pkg/registry/helpers"
-	watchtowerTypes "github.com/containrrr/watchtower/pkg/types"
 	ref "github.com/distribution/reference"
+	"github.com/dkhoanguyen/watchtower/pkg/registry/helpers"
+	watchtowerTypes "github.com/dkhoanguyen/watchtower/pkg/types"
 	"github.com/docker/docker/api/types"
 	log "github.com/sirupsen/logrus"
 )

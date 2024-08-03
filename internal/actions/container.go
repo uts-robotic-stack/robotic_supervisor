@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	containerService "github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/filters"
-	"github.com/containrrr/watchtower/pkg/types"
+	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/pkg/filters"
+	srv "github.com/dkhoanguyen/watchtower/pkg/services"
+	"github.com/dkhoanguyen/watchtower/pkg/types"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -20,7 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartContainer(client containerService.Client, service *containerService.Service) error {
+func StartContainer(client containerService.Client, service *srv.Service) error {
 	// Create config
 	containerConfig, networkConfig, hostConfig := makeContainerCreateOptions(service, nil)
 	_, err := client.StartContainer(
@@ -28,7 +29,7 @@ func StartContainer(client containerService.Client, service *containerService.Se
 	return err
 }
 
-func StopContainer(client containerService.Client, service *containerService.Service) error {
+func StopContainer(client containerService.Client, service *srv.Service) error {
 	containers, _ := client.ListContainers(filters.NoFilter)
 	for _, container := range containers {
 		// Skip if watchtower
@@ -140,15 +141,15 @@ func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name st
 }
 
 func makeContainerCreateOptions(
-	service *containerService.Service,
-	network *containerService.Network) (container.Config, network.NetworkingConfig, container.HostConfig) {
+	service *srv.Service,
+	network *srv.Network) (container.Config, network.NetworkingConfig, container.HostConfig) {
 	containerConfig := makeContainerConfig(service)
 	networkConfig := makeNetworkConfig(service)
 	hostConfig := makeHostConfig(service)
 	return containerConfig, networkConfig, hostConfig
 }
 
-func makeContainerConfig(service *containerService.Service) container.Config {
+func makeContainerConfig(service *srv.Service) container.Config {
 	return container.Config{
 		Hostname:   service.Hostname,
 		Domainname: service.Domainname,
@@ -163,7 +164,7 @@ func makeContainerConfig(service *containerService.Service) container.Config {
 	}
 }
 
-func makeNetworkConfig(service *containerService.Service) network.NetworkingConfig {
+func makeNetworkConfig(service *srv.Service) network.NetworkingConfig {
 	// If the current working environment is dev-related
 	// the we fuse the service network with host settings
 	endPointConfig := map[string]*network.EndpointSettings{}
@@ -172,7 +173,7 @@ func makeNetworkConfig(service *containerService.Service) network.NetworkingConf
 	}
 }
 
-func makeHostConfig(service *containerService.Service) container.HostConfig {
+func makeHostConfig(service *srv.Service) container.HostConfig {
 	// Prepare binding
 	extraHost := make([]string, 0)
 	return container.HostConfig{
@@ -194,7 +195,7 @@ func makeHostConfig(service *containerService.Service) container.HostConfig {
 	}
 }
 
-func prepareVolumeBinding(service *containerService.Service) []string {
+func prepareVolumeBinding(service *srv.Service) []string {
 	output := []string{}
 	for _, volume := range service.Volumes {
 		if len(volume.Source) > 0 && len(volume.Destination) > 0 {
@@ -208,7 +209,7 @@ func prepareVolumeBinding(service *containerService.Service) []string {
 	return output
 }
 
-func getRestartPolicy(service *containerService.Service) container.RestartPolicy {
+func getRestartPolicy(service *srv.Service) container.RestartPolicy {
 	restart := container.RestartPolicy{}
 	if service.Restart != "" {
 		split := strings.Split(service.Restart, ":")
@@ -223,7 +224,7 @@ func getRestartPolicy(service *containerService.Service) container.RestartPolicy
 
 }
 
-func getPortBinding(service *containerService.Service) nat.PortMap {
+func getPortBinding(service *srv.Service) nat.PortMap {
 	bindingMap := nat.PortMap{}
 	for _, port := range service.Ports {
 		p := nat.Port(port.Target + "/" + port.Protocol)
@@ -238,7 +239,7 @@ func getPortBinding(service *containerService.Service) nat.PortMap {
 	return bindingMap
 }
 
-func getResouces(service *containerService.Service) container.Resources {
+func getResouces(service *srv.Service) container.Resources {
 	serviceResources := service.Resources
 	deviceMappingList := []container.DeviceMapping{}
 	for _, device := range service.Devices {

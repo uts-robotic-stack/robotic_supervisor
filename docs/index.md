@@ -20,7 +20,7 @@
   <a href="https://goreportcard.com/report/github.com/containrrr/watchtower">
     <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/containrrr/watchtower" />
   </a>
-  <a href="https://github.com/containrrr/watchtower/releases">
+  <a href="https://github.com/dkhoanguyen/watchtower/releases">
     <img alt="latest version" src="https://img.shields.io/github/tag/containrrr/watchtower.svg" />
   </a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0">
@@ -29,7 +29,7 @@
   <a href="https://www.codacy.com/gh/containrrr/watchtower/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=containrrr/watchtower&amp;utm_campaign=Badge_Grade">
     <img alt="Codacy Badge" src="https://app.codacy.com/project/badge/Grade/1c48cfb7646d4009aa8c6f71287670b8"/>
   </a>
-  <a href="https://github.com/containrrr/watchtower/#contributors">
+  <a href="https://github.com/dkhoanguyen/watchtower/#contributors">
     <img alt="All Contributors" src="https://img.shields.io/github/all-contributors/containrrr/watchtower" />
   </a>
   <a href="https://hub.docker.com/r/containrrr/watchtower">

@@ -5,10 +5,10 @@ import (
 
 	"github.com/docker/docker/api/types/network"
 
-	"github.com/containrrr/watchtower/internal/util"
-	"github.com/containrrr/watchtower/pkg/container/mocks"
-	"github.com/containrrr/watchtower/pkg/filters"
-	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/dkhoanguyen/watchtower/internal/util"
+	"github.com/dkhoanguyen/watchtower/pkg/container/mocks"
+	"github.com/dkhoanguyen/watchtower/pkg/filters"
+	t "github.com/dkhoanguyen/watchtower/pkg/types"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/backend"

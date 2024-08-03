@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/containrrr/shoutrrr/pkg/types"
-	"github.com/containrrr/watchtower/internal/actions/mocks"
-	"github.com/containrrr/watchtower/internal/flags"
-	s "github.com/containrrr/watchtower/pkg/session"
+	"github.com/dkhoanguyen/watchtower/internal/actions/mocks"
+	"github.com/dkhoanguyen/watchtower/internal/flags"
+	s "github.com/dkhoanguyen/watchtower/pkg/session"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"

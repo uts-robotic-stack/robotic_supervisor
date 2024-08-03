@@ -6,6 +6,6 @@
 # fi
 # VERSION=$(git describe --tags)
 # echo "Building $VERSION..."
-# go build -o $BINFILE -ldflags "-X github.com/containrrr/watchtower/internal/meta.Version=$VERSION"
+# go build -o $BINFILE -ldflags "-X github.com/dkhoanguyen/watchtower/internal/meta.Version=$VERSION"
 
 docker build . -f dockerfiles/Dockerfile.dev-self-contained -t containrrr/watchtower  

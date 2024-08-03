@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/containrrr/watchtower/internal/actions"
-	"github.com/containrrr/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/internal/actions"
+	"github.com/dkhoanguyen/watchtower/pkg/container"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"

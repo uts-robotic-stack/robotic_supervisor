@@ -1,9 +1,5 @@
 package services
 
-import (
-	"github.com/dkhoanguyen/watchtower/pkg/types"
-)
-
 const (
 	Unknown  = "Unknown"
 	Unloaded = "Unload"
@@ -13,6 +9,7 @@ const (
 
 type Service struct {
 	Name          string            `json:"name"`
+	Status        string            `json:"status"`
 	Action        string            `json:"action"`
 	Hostname      string            `json:"hostname"`
 	User          string            `json:"user"`
@@ -44,22 +41,47 @@ type Service struct {
 	Image         string            `json:"image"`
 }
 
-func (s types.Service) Name() string {
+func (s Service) GetName() string {
 	return s.Name
 }
 
-func (s types.Service) Status() string {
+func (s Service) GetStatus() string {
 	return s.Status
 }
 
-func (s types.Service) Settings() []string {
-	return s.Settings
-}
-
-func MakeServiceFromYaml(config map[string]interface{},
+func MakeServiceFromDict(config map[string]interface{},
 	name string) Service {
-	service := Service{}
-	return service
+	output := Service{}
+	output.Name = name
+	// Image
+	output.Image = MakeImageFromDict(config)
+	// Action
+	output.Action = MakeActionFromDict(config)
+	// Container Name
+	output.ContainerName = MakeContainerNameFromDict(config)
+	// Commands
+	output.Command = MakeCommandFromDict(config, "command")
+	// Dependencies
+	output.DependsOn = MakeDependsOnFromDict(config)
+	// Deployment and Resources
+	output.Resources = MakeDeployResourcesFromDict(config)
+	// Entrypoint
+	output.EntryPoint = MakeCommandFromDict(config, "entrypoint")
+	// Environment Variables
+	output.Environment = MakeEnviromentFromDict(config)
+	// Network
+	output.Networks = MakeNetworksFromDict(config)
+	// Ports
+	output.Ports = MakePortBindingFromDict(config)
+	// Privileged
+	output.Privileged = MakePrivilegedFromDict(config)
+	// Restart
+	output.Restart = MakeRestartOptFromDict(config)
+	// TTY
+	output.Tty = MakeTTYFromDict(config)
+	// Volumes
+	output.Volumes = MakeVolumesFromDict(config)
+	return output
 }
 
 func MakeCommonSettings() []string {

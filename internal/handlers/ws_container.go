@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containrrr/watchtower/pkg/filters"
-	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/dkhoanguyen/watchtower/pkg/filters"
+	"github.com/dkhoanguyen/watchtower/pkg/types"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )

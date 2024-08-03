@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/containrrr/watchtower/internal/actions"
-	"github.com/containrrr/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/internal/actions"
+	"github.com/dkhoanguyen/watchtower/pkg/container"
+	srv "github.com/dkhoanguyen/watchtower/pkg/services"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
@@ -76,12 +77,12 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 		return
 	}
 	log.Info("Running service handle")
-	services := []container.Service{}
+	services := make([]srv.Service, 0)
 	rawServiceData := body["services"].(map[string]interface{})
 
 	// Extract services from the raw data
 	for name, config := range rawServiceData {
-		service := container.MakeService(config.(map[string]interface{}), name)
+		service := srv.MakeServiceFromDict(config.(map[string]interface{}), name)
 		services = append(services, service)
 	}
 
@@ -103,12 +104,12 @@ func (h *ContainerHandler) HandleContainerStop(c *gin.Context) {
 		return
 	}
 	log.Info("Running service handle")
-	services := []container.Service{}
+	services := []srv.Service{}
 	rawServiceData := body["services"].(map[string]interface{})
 
 	// Extract services from the raw data
 	for name, config := range rawServiceData {
-		service := container.MakeService(config.(map[string]interface{}), name)
+		service := srv.MakeServiceFromDict(config.(map[string]interface{}), name)
 		services = append(services, service)
 	}
 

@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/containrrr/watchtower/internal/handlers"
+	"github.com/dkhoanguyen/watchtower/internal/handlers"
 	"github.com/gin-gonic/gin"
 )
 

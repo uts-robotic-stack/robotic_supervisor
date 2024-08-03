@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
-	container "github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/device"
-	"github.com/containrrr/watchtower/pkg/filters"
-	"github.com/containrrr/watchtower/pkg/types"
+	container "github.com/dkhoanguyen/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/pkg/device"
+	"github.com/dkhoanguyen/watchtower/pkg/filters"
+	"github.com/dkhoanguyen/watchtower/pkg/types"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )

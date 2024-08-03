@@ -9,17 +9,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/containrrr/watchtower/internal/actions"
-	"github.com/containrrr/watchtower/internal/api"
-	"github.com/containrrr/watchtower/internal/flags"
-	"github.com/containrrr/watchtower/internal/handlers"
-	"github.com/containrrr/watchtower/internal/meta"
-	"github.com/containrrr/watchtower/internal/middleware"
-	"github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/filters"
-	"github.com/containrrr/watchtower/pkg/metrics"
-	"github.com/containrrr/watchtower/pkg/notifications"
-	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/dkhoanguyen/watchtower/internal/actions"
+	"github.com/dkhoanguyen/watchtower/internal/api"
+	"github.com/dkhoanguyen/watchtower/internal/flags"
+	"github.com/dkhoanguyen/watchtower/internal/handlers"
+	"github.com/dkhoanguyen/watchtower/internal/meta"
+	"github.com/dkhoanguyen/watchtower/internal/middleware"
+	"github.com/dkhoanguyen/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/pkg/filters"
+	"github.com/dkhoanguyen/watchtower/pkg/metrics"
+	"github.com/dkhoanguyen/watchtower/pkg/notifications"
+	t "github.com/dkhoanguyen/watchtower/pkg/types"
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
@@ -53,7 +53,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "Automatically updates running Docker containers",
 		Long: `
 	Watchtower automatically updates running Docker containers whenever a new image is released.
-	More information available at https://github.com/containrrr/watchtower/.
+	More information available at https://github.com/dkhoanguyen/watchtower/.
 	`,
 		Run:    Run,
 		PreRun: PreRun,

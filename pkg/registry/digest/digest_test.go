@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containrrr/watchtower/internal/actions/mocks"
-	"github.com/containrrr/watchtower/pkg/registry/digest"
-	wtTypes "github.com/containrrr/watchtower/pkg/types"
+	"github.com/dkhoanguyen/watchtower/internal/actions/mocks"
+	"github.com/dkhoanguyen/watchtower/pkg/registry/digest"
+	wtTypes "github.com/dkhoanguyen/watchtower/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
