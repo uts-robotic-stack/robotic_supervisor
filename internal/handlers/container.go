@@ -6,7 +6,6 @@ import (
 
 	"github.com/dkhoanguyen/watchtower/internal/actions"
 	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
-	srv "github.com/dkhoanguyen/watchtower/pkg/services"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
@@ -68,138 +67,84 @@ func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {
 	go client.broadcastLogs(containerName)
 }
 
-func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
-	log.Info("Received HTTP request to start container")
-	// This should not be service body
-	var body map[string]interface{}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-	log.Info("Running service handle")
-	services := make([]srv.Service, 0)
-	rawServiceData := body["services"].(map[string]interface{})
-
-	// Extract services from the raw data
-	for name, config := range rawServiceData {
-		service := srv.MakeServiceFromDict(config.(map[string]interface{}), name)
-		services = append(services, service)
-	}
-
-	// Execute actions on the services
-	for _, service := range services {
-		if err := actions.StartContainer(h.client, &service); err != nil {
-			log.Error(err)
-		}
-	}
-	c.JSON(http.StatusOK, nil)
-}
-
-func (h *ContainerHandler) HandleContainerStop(c *gin.Context) {
-	log.Info("Received HTTP request to stop container")
-	// This should not be service body
-	var body map[string]interface{}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-	log.Info("Running service handle")
-	services := []srv.Service{}
-	rawServiceData := body["services"].(map[string]interface{})
-
-	// Extract services from the raw data
-	for name, config := range rawServiceData {
-		service := srv.MakeServiceFromDict(config.(map[string]interface{}), name)
-		services = append(services, service)
-	}
-
-	// Execute actions on the services
-	for _, service := range services {
-		if err := actions.StartContainer(h.client, &service); err != nil {
-			log.Error(err)
-		}
-	}
-	c.JSON(http.StatusOK, nil)
-}
-
 func (h *ContainerHandler) HandleContainerInspect(c *gin.Context) {
 	log.Info("Received HTTP request to inspect container")
-	containerName := c.Query("container")
-	containerJSON, err := actions.InspectContainer(h.client, containerName)
-	if err != nil {
-		log.Error(err)
-	}
-	config := containerJSON.Config
-	hostConfig := containerJSON.HostConfig
-	networkSettings := containerJSON.NetworkSettings
-	service := &srv.Service{
-		Name:          containerJSON.Name,
-		Status:        containerJSON.State.Status,
-		Action:        "start", // assuming the action is to start the container
-		Hostname:      config.Hostname,
-		User:          config.User,
-		CapAdd:        hostConfig.CapAdd,
-		CapDrop:       hostConfig.CapDrop,
-		CgroupParent:  hostConfig.CgroupParent,
-		Command:       srv.ShellCommand(config.Cmd),
-		ContainerName: containerJSON.Name,
-		DomainName:    config.Domainname,
-		Environment:   config.Env,
-		Privileged:    hostConfig.Privileged,
-		Restart:       hostConfig.RestartPolicy.Name,
-		Tty:           config.Tty,
-		WorkingDir:    config.WorkingDir,
-		Image:         config.Image,
-	}
-
-	// // Fill resources
-	// if hostConfig.Resources != (container.Resources{}) {
-	// 	service.Resources = srv.ServiceResources{
-	// 		CPUPeriod:         hostConfig.Resources.CPUPeriod,
-	// 		CPUQuota:          hostConfig.Resources.CPUQuota,
-	// 		CpusetCpus:        hostConfig.Resources.CpusetCpus,
-	// 		CpusetMems:        hostConfig.Resources.CpusetMems,
-	// 		MemoryLimit:       hostConfig.Resources.Memory,
-	// 		MemoryReservation: hostConfig.Resources.MemoryReservation,
-	// 		MemorySwap:        hostConfig.Resources.MemorySwap,
-	// 		MemorySwappiness:  *hostConfig.Resources.MemorySwappiness,
-	// 		OomKillDisable:    *hostConfig.Resources.OomKillDisable,
-	// 	}
+	// containerName := c.Query("container")
+	// containerJSON, err := actions.InspectContainer(h.client, containerName)
+	// if err != nil {
+	// 	log.Error(err)
+	// }
+	// config := containerJSON.Config
+	// hostConfig := containerJSON.HostConfig
+	// networkSettings := containerJSON.NetworkSettings
+	// service := &srv.Service{
+	// 	Name:          containerJSON.Name,
+	// 	Status:        containerJSON.State.Status,
+	// 	Action:        "start", // assuming the action is to start the container
+	// 	Hostname:      config.Hostname,
+	// 	User:          config.User,
+	// 	CapAdd:        hostConfig.CapAdd,
+	// 	CapDrop:       hostConfig.CapDrop,
+	// 	CgroupParent:  hostConfig.CgroupParent,
+	// 	Command:       srv.ShellCommand(config.Cmd),
+	// 	ContainerName: containerJSON.Name,
+	// 	DomainName:    config.Domainname,
+	// 	Environment:   config.Env,
+	// 	Privileged:    hostConfig.Privileged,
+	// 	Restart:       hostConfig.RestartPolicy.Name,
+	// 	Tty:           config.Tty,
+	// 	WorkingDir:    config.WorkingDir,
+	// 	Image:         config.Image,
 	// }
 
-	// Fill networks
-	for networkName, networkConfig := range networkSettings.Networks {
-		service.Networks = append(service.Networks, srv.ServiceNetwork{
-			Name:    networkName,
-			Aliases: networkConfig.Aliases,
-			IPv4:    networkConfig.IPAddress,
-			IPv6:    networkConfig.GlobalIPv6Address,
-		})
-	}
+	// // // Fill resources
+	// // if hostConfig.Resources != (container.Resources{}) {
+	// // 	service.Resources = srv.ServiceResources{
+	// // 		CPUPeriod:         hostConfig.Resources.CPUPeriod,
+	// // 		CPUQuota:          hostConfig.Resources.CPUQuota,
+	// // 		CpusetCpus:        hostConfig.Resources.CpusetCpus,
+	// // 		CpusetMems:        hostConfig.Resources.CpusetMems,
+	// // 		MemoryLimit:       hostConfig.Resources.Memory,
+	// // 		MemoryReservation: hostConfig.Resources.MemoryReservation,
+	// // 		MemorySwap:        hostConfig.Resources.MemorySwap,
+	// // 		MemorySwappiness:  *hostConfig.Resources.MemorySwappiness,
+	// // 		OomKillDisable:    *hostConfig.Resources.OomKillDisable,
+	// // 	}
+	// // }
 
-	// // Fill ports
-	// for _, port := range config.ExposedPorts {
-	// 	for _, binding := range networkSettings.Ports[port] {
-	// 		service.Ports = append(service.Ports, srv.ServicePort{
-	// 			Target:   port.Port(),
-	// 			Protocol: port.Proto(),
-	// 			HostIp:   binding.HostIP,
-	// 			HostPort: binding.HostPort,
-	// 		})
-	// 	}
+	// // Fill networks
+	// for networkName, networkConfig := range networkSettings.Networks {
+	// 	service.Networks = append(service.Networks, srv.ServiceNetwork{
+	// 		Name:    networkName,
+	// 		Aliases: networkConfig.Aliases,
+	// 		IPv4:    networkConfig.IPAddress,
+	// 		IPv6:    networkConfig.GlobalIPv6Address,
+	// 	})
 	// }
 
-	// Fill volumes
-	for _, mount := range hostConfig.Mounts {
-		service.Volumes = append(service.Volumes, srv.ServiceVolume{
-			Type:        string(mount.Type),
-			Source:      mount.Source,
-			Destination: mount.Target,
-			Option:      "",
-		})
-	}
+	// // // Fill ports
+	// // for _, port := range config.ExposedPorts {
+	// // 	for _, binding := range networkSettings.Ports[port] {
+	// // 		service.Ports = append(service.Ports, srv.ServicePort{
+	// // 			Target:   port.Port(),
+	// // 			Protocol: port.Proto(),
+	// // 			HostIp:   binding.HostIP,
+	// // 			HostPort: binding.HostPort,
+	// // 		})
+	// // 	}
+	// // }
 
-	c.JSON(http.StatusOK, service)
+	// // Fill volumes
+	// for _, mount := range hostConfig.Mounts {
+	// 	service.Volumes = append(service.Volumes, srv.ServiceVolume{
+	// 		Type:        string(mount.Type),
+	// 		Source:      mount.Source,
+	// 		Destination: mount.Target,
+	// 		Option:      "",
+	// 	})
+	// }
+
+	c.JSON(http.StatusOK, nil)
 }
 
 func (h *ContainerHandler) HandlerContainerLogs(c *gin.Context) {
