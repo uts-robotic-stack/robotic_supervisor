@@ -24,6 +24,10 @@ func SetRoutes(router *gin.Engine,
 			watchtowerSubgroup.POST("/update", watchtowerHandler.HandlePostUpdate)
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
 			watchtowerSubgroup.GET("/log-stream", containerHandler.HandleWSLogs)
+			watchtowerSubgroup.GET("/log", containerHandler.HandlerContainerLogs)
+
+			watchtowerSubgroup.POST("/load", containerHandler.HandleContainerCreate)
+			watchtowerSubgroup.POST("/run", containerHandler.HandleContainerStart)
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package services
+package service
 
 type NetworkConfig struct {
 	IPAddress string `json:"ip_address"`

@@ -1,4 +1,4 @@
-package services
+package service
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ type MountConfig struct {
 	Target string `json:"target"`
 }
 
-func formatEnvVars(envVars map[string]string) []string {
+func FormatEnvVars(envVars map[string]string) []string {
 	var formatted []string
 	for key, value := range envVars {
 		formatted = append(formatted, fmt.Sprintf("%s=%s", key, value))
@@ -20,7 +20,7 @@ func formatEnvVars(envVars map[string]string) []string {
 	return formatted
 }
 
-func formatMounts(mounts []MountConfig) []mount.Mount {
+func FormatMounts(mounts []MountConfig) []mount.Mount {
 	var formatted []mount.Mount
 	for _, m := range mounts {
 		formatted = append(formatted, mount.Mount{

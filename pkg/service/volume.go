@@ -1,4 +1,4 @@
-package services
+package service
 
 import "fmt"
 
@@ -7,7 +7,7 @@ type VolumeConfig struct {
 	Target string `json:"target"`
 }
 
-func formatVolumes(volumes []VolumeConfig) []string {
+func FormatVolumes(volumes []VolumeConfig) []string {
 	var formatted []string
 	for _, v := range volumes {
 		formatted = append(formatted, fmt.Sprintf("%s:%s", v.Source, v.Target))

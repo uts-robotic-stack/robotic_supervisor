@@ -1,4 +1,12 @@
-package services
+package service
+
+type ServiceMap struct {
+	Services map[string]Service `json:"services"`
+}
+
+type ServiceIDMap struct {
+	ServiceID map[string]string `json:"services"`
+}
 
 type Service struct {
 	Action          string            `json:"action"`
@@ -13,5 +21,7 @@ type Service struct {
 	Mounts          []MountConfig     `json:"mounts"`
 	EnvVars         map[string]string `json:"env_vars"`
 	Volumes         []VolumeConfig    `json:"volumes"`
-	Command         string            `json:"command"`
+	Command         []string          `json:"command"`
+	Resources       ResourceConfig    `json:"resources"`
+	Sysctls         map[string]string `json:"sysctls"`
 }

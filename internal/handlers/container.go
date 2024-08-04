@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 
 	"github.com/dkhoanguyen/watchtower/internal/actions"
 	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/pkg/service"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/network"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
@@ -48,6 +52,98 @@ func (h *ContainerHandler) removeClient(client *Client) {
 	}
 }
 
+// Handle create (equivalent to load)
+func (h *ContainerHandler) HandleContainerCreate(c *gin.Context) {
+	log.Info("Received HTTP request to create container")
+
+	var srvMap service.ServiceMap
+	if err := c.ShouldBindJSON(&srvMap); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	// Response
+	resp := service.ServiceIDMap{ServiceID: make(map[string]string)}
+
+	for serviceName, serviceReq := range srvMap.Services {
+		config := &container.Config{
+			Image: serviceReq.Image,
+			Tty:   serviceReq.Tty,
+			Env:   service.FormatEnvVars(serviceReq.EnvVars),
+			Cmd:   serviceReq.Command,
+		}
+
+		hostConfig := &container.HostConfig{
+			Privileged:  serviceReq.Privileged,
+			NetworkMode: container.NetworkMode(serviceReq.Network),
+			Mounts:      service.FormatMounts(serviceReq.Mounts),
+			Binds:       service.FormatVolumes(serviceReq.Volumes),
+		}
+
+		if serviceReq.Restart != "" {
+			hostConfig.RestartPolicy = container.RestartPolicy{Name: serviceReq.Restart}
+		}
+
+		networkingConfig := &network.NetworkingConfig{}
+		if serviceReq.NetworkSettings.IPAddress != "" {
+			networkingConfig.EndpointsConfig = map[string]*network.EndpointSettings{
+				serviceReq.Network: {
+					IPAMConfig: &network.EndpointIPAMConfig{
+						IPv4Address: serviceReq.NetworkSettings.IPAddress,
+					},
+					Gateway: serviceReq.NetworkSettings.Gateway,
+				},
+			}
+		}
+
+		id, err := h.client.CreateContainer(
+			serviceName, *config, *hostConfig, *networkingConfig)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create container: %v", err)})
+			return
+		}
+		resp.ServiceID[serviceName] = id.ShortID()
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// Handle start
+func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
+	log.Info("Received HTTP request to start container")
+	var srvIDMap service.ServiceIDMap
+	if err := c.ShouldBindJSON(&srvIDMap); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	fmt.Println(srvIDMap)
+	resp := make(map[string]bool)
+	failedService := ""
+	for serviceName, serviceID := range srvIDMap.ServiceID {
+		fmt.Println(serviceID)
+		err := h.client.StartContainerByID(serviceID)
+		if err != nil {
+			log.Error(err)
+			resp[serviceName] = false
+			failedService += serviceName + " "
+			continue
+		}
+		resp[serviceName] = true
+	}
+	if failedService != "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to start " + failedService})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// Handle stop
+
+// Handle remove (equivalen to unload)
+
+// Handle logs
 func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -67,86 +163,6 @@ func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {
 	go client.broadcastLogs(containerName)
 }
 
-func (h *ContainerHandler) HandleContainerInspect(c *gin.Context) {
-	log.Info("Received HTTP request to inspect container")
-	// containerName := c.Query("container")
-	// containerJSON, err := actions.InspectContainer(h.client, containerName)
-	// if err != nil {
-	// 	log.Error(err)
-	// }
-	// config := containerJSON.Config
-	// hostConfig := containerJSON.HostConfig
-	// networkSettings := containerJSON.NetworkSettings
-	// service := &srv.Service{
-	// 	Name:          containerJSON.Name,
-	// 	Status:        containerJSON.State.Status,
-	// 	Action:        "start", // assuming the action is to start the container
-	// 	Hostname:      config.Hostname,
-	// 	User:          config.User,
-	// 	CapAdd:        hostConfig.CapAdd,
-	// 	CapDrop:       hostConfig.CapDrop,
-	// 	CgroupParent:  hostConfig.CgroupParent,
-	// 	Command:       srv.ShellCommand(config.Cmd),
-	// 	ContainerName: containerJSON.Name,
-	// 	DomainName:    config.Domainname,
-	// 	Environment:   config.Env,
-	// 	Privileged:    hostConfig.Privileged,
-	// 	Restart:       hostConfig.RestartPolicy.Name,
-	// 	Tty:           config.Tty,
-	// 	WorkingDir:    config.WorkingDir,
-	// 	Image:         config.Image,
-	// }
-
-	// // // Fill resources
-	// // if hostConfig.Resources != (container.Resources{}) {
-	// // 	service.Resources = srv.ServiceResources{
-	// // 		CPUPeriod:         hostConfig.Resources.CPUPeriod,
-	// // 		CPUQuota:          hostConfig.Resources.CPUQuota,
-	// // 		CpusetCpus:        hostConfig.Resources.CpusetCpus,
-	// // 		CpusetMems:        hostConfig.Resources.CpusetMems,
-	// // 		MemoryLimit:       hostConfig.Resources.Memory,
-	// // 		MemoryReservation: hostConfig.Resources.MemoryReservation,
-	// // 		MemorySwap:        hostConfig.Resources.MemorySwap,
-	// // 		MemorySwappiness:  *hostConfig.Resources.MemorySwappiness,
-	// // 		OomKillDisable:    *hostConfig.Resources.OomKillDisable,
-	// // 	}
-	// // }
-
-	// // Fill networks
-	// for networkName, networkConfig := range networkSettings.Networks {
-	// 	service.Networks = append(service.Networks, srv.ServiceNetwork{
-	// 		Name:    networkName,
-	// 		Aliases: networkConfig.Aliases,
-	// 		IPv4:    networkConfig.IPAddress,
-	// 		IPv6:    networkConfig.GlobalIPv6Address,
-	// 	})
-	// }
-
-	// // // Fill ports
-	// // for _, port := range config.ExposedPorts {
-	// // 	for _, binding := range networkSettings.Ports[port] {
-	// // 		service.Ports = append(service.Ports, srv.ServicePort{
-	// // 			Target:   port.Port(),
-	// // 			Protocol: port.Proto(),
-	// // 			HostIp:   binding.HostIP,
-	// // 			HostPort: binding.HostPort,
-	// // 		})
-	// // 	}
-	// // }
-
-	// // Fill volumes
-	// for _, mount := range hostConfig.Mounts {
-	// 	service.Volumes = append(service.Volumes, srv.ServiceVolume{
-	// 		Type:        string(mount.Type),
-	// 		Source:      mount.Source,
-	// 		Destination: mount.Target,
-	// 		Option:      "",
-	// 	})
-	// }
-
-	c.JSON(http.StatusOK, nil)
-}
-
 func (h *ContainerHandler) HandlerContainerLogs(c *gin.Context) {
 	log.Info("Received HTTP request to get container logs")
 	containerName := c.Query("container")
@@ -155,4 +171,10 @@ func (h *ContainerHandler) HandlerContainerLogs(c *gin.Context) {
 		log.Error(err)
 	}
 	c.JSON(http.StatusOK, output)
+}
+
+// Handle inspect
+func (h *ContainerHandler) HandleContainerInspect(c *gin.Context) {
+	log.Info("Received HTTP request to inspect container")
+	c.JSON(http.StatusOK, nil)
 }
