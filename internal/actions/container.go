@@ -152,7 +152,7 @@ func makeContainerCreateOptions(
 func makeContainerConfig(service *srv.Service) container.Config {
 	return container.Config{
 		Hostname:   service.Hostname,
-		Domainname: service.Domainname,
+		Domainname: service.DomainName,
 		User:       service.User,
 		Tty:        service.Tty,
 		Cmd:        strslice.StrSlice(service.Command),

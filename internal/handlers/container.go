@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/dkhoanguyen/watchtower/internal/actions"
-	"github.com/dkhoanguyen/watchtower/pkg/container"
+	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
 	srv "github.com/dkhoanguyen/watchtower/pkg/services"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -13,13 +13,13 @@ import (
 )
 
 type ContainerHandler struct {
-	client        container.Client
+	client        containerService.Client
 	logsFrequency float64
 	wsClients     ClientList
 	sync.Mutex
 }
 
-func NewContainerHandler(client container.Client, logFreq float64) *ContainerHandler {
+func NewContainerHandler(client containerService.Client, logFreq float64) *ContainerHandler {
 	return &ContainerHandler{
 		client:        client,
 		logsFrequency: logFreq,
@@ -125,11 +125,81 @@ func (h *ContainerHandler) HandleContainerStop(c *gin.Context) {
 func (h *ContainerHandler) HandleContainerInspect(c *gin.Context) {
 	log.Info("Received HTTP request to inspect container")
 	containerName := c.Query("container")
-	output, err := actions.InspectContainer(h.client, containerName)
+	containerJSON, err := actions.InspectContainer(h.client, containerName)
 	if err != nil {
 		log.Error(err)
 	}
-	c.JSON(http.StatusOK, output)
+	config := containerJSON.Config
+	hostConfig := containerJSON.HostConfig
+	networkSettings := containerJSON.NetworkSettings
+	service := &srv.Service{
+		Name:          containerJSON.Name,
+		Status:        containerJSON.State.Status,
+		Action:        "start", // assuming the action is to start the container
+		Hostname:      config.Hostname,
+		User:          config.User,
+		CapAdd:        hostConfig.CapAdd,
+		CapDrop:       hostConfig.CapDrop,
+		CgroupParent:  hostConfig.CgroupParent,
+		Command:       srv.ShellCommand(config.Cmd),
+		ContainerName: containerJSON.Name,
+		DomainName:    config.Domainname,
+		Environment:   config.Env,
+		Privileged:    hostConfig.Privileged,
+		Restart:       hostConfig.RestartPolicy.Name,
+		Tty:           config.Tty,
+		WorkingDir:    config.WorkingDir,
+		Image:         config.Image,
+	}
+
+	// // Fill resources
+	// if hostConfig.Resources != (container.Resources{}) {
+	// 	service.Resources = srv.ServiceResources{
+	// 		CPUPeriod:         hostConfig.Resources.CPUPeriod,
+	// 		CPUQuota:          hostConfig.Resources.CPUQuota,
+	// 		CpusetCpus:        hostConfig.Resources.CpusetCpus,
+	// 		CpusetMems:        hostConfig.Resources.CpusetMems,
+	// 		MemoryLimit:       hostConfig.Resources.Memory,
+	// 		MemoryReservation: hostConfig.Resources.MemoryReservation,
+	// 		MemorySwap:        hostConfig.Resources.MemorySwap,
+	// 		MemorySwappiness:  *hostConfig.Resources.MemorySwappiness,
+	// 		OomKillDisable:    *hostConfig.Resources.OomKillDisable,
+	// 	}
+	// }
+
+	// Fill networks
+	for networkName, networkConfig := range networkSettings.Networks {
+		service.Networks = append(service.Networks, srv.ServiceNetwork{
+			Name:    networkName,
+			Aliases: networkConfig.Aliases,
+			IPv4:    networkConfig.IPAddress,
+			IPv6:    networkConfig.GlobalIPv6Address,
+		})
+	}
+
+	// // Fill ports
+	// for _, port := range config.ExposedPorts {
+	// 	for _, binding := range networkSettings.Ports[port] {
+	// 		service.Ports = append(service.Ports, srv.ServicePort{
+	// 			Target:   port.Port(),
+	// 			Protocol: port.Proto(),
+	// 			HostIp:   binding.HostIP,
+	// 			HostPort: binding.HostPort,
+	// 		})
+	// 	}
+	// }
+
+	// Fill volumes
+	for _, mount := range hostConfig.Mounts {
+		service.Volumes = append(service.Volumes, srv.ServiceVolume{
+			Type:        string(mount.Type),
+			Source:      mount.Source,
+			Destination: mount.Target,
+			Option:      "",
+		})
+	}
+
+	c.JSON(http.StatusOK, service)
 }
 
 func (h *ContainerHandler) HandlerContainerLogs(c *gin.Context) {
