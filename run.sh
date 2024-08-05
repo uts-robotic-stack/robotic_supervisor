@@ -6,6 +6,7 @@ docker run -d --name "robotics_supervisor" \
   --restart "always" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e WATCHTOWER_CLEANUP=true \
+  -e WATCHTOWER_INCLUDE_STOPPED=true \
   -e WATCHTOWER_INCLUDE_RESTARTING=true \
   -e WATCHTOWER_HTTP_API_TOKEN=robotics \
   -e WATCHTOWER_HTTP_API_PERIODIC_POLLS=true \

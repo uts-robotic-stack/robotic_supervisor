@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/dkhoanguyen/watchtower/internal/actions"
 	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
+	"github.com/dkhoanguyen/watchtower/pkg/filters"
 	"github.com/dkhoanguyen/watchtower/pkg/service"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -117,20 +119,27 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 		return
 	}
 
-	fmt.Println(srvIDMap)
 	resp := make(map[string]bool)
 	failedService := ""
-	for serviceName, serviceID := range srvIDMap.ServiceID {
-		fmt.Println(serviceID)
-		err := h.client.StartContainerByID(serviceID)
-		if err != nil {
-			log.Error(err)
-			resp[serviceName] = false
-			failedService += serviceName + " "
-			continue
+
+	// List all containers
+	containers, _ := h.client.ListContainers(filters.NoFilter)
+
+	for serviceName := range srvIDMap.ServiceID {
+		for _, cnt := range containers {
+			if cnt.Name()[1:] == serviceName {
+				err := h.client.StartContainerByID(cnt.ID().ShortID())
+				resp[serviceName] = true
+				if err != nil {
+					log.Error(err)
+					resp[serviceName] = false
+					failedService += serviceName + " "
+				}
+				break
+			}
 		}
-		resp[serviceName] = true
 	}
+
 	if failedService != "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to start " + failedService})
 		return
@@ -140,8 +149,42 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 }
 
 // Handle stop
+func (h *ContainerHandler) HandleContainerStop(c *gin.Context) {
+	log.Info("Received HTTP request to stop container")
+	var srvIDMap service.ServiceIDMap
+	if err := c.ShouldBindJSON(&srvIDMap); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
 
-// Handle remove (equivalen to unload)
+	resp := make(map[string]bool)
+	failedService := ""
+
+	// List all containers
+	containers, _ := h.client.ListContainers(filters.NoFilter)
+
+	for serviceName := range srvIDMap.ServiceID {
+		for _, cnt := range containers {
+			if cnt.Name()[1:] == serviceName {
+				err := h.client.StopContainer(cnt, 10*time.Second)
+				resp[serviceName] = true
+				if err != nil {
+					log.Error(err)
+					resp[serviceName] = false
+					failedService += serviceName + " "
+				}
+				break
+			}
+		}
+	}
+
+	if failedService != "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to stop " + failedService})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
 
 // Handle logs
 func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {

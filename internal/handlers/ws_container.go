@@ -72,7 +72,6 @@ func (c *Client) broadcastLogs(containerName string) {
 		pingTicker.Stop()
 		writeTicker.Stop()
 		healthy = false
-		log.Info("Cleaning up connection")
 		c.handler.removeClient(c)
 	}()
 
@@ -90,7 +89,6 @@ func (c *Client) broadcastLogs(containerName string) {
 			}
 
 		}
-		log.Info("Closed scanner")
 	}()
 
 	for {

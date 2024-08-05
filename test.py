@@ -41,23 +41,28 @@
 import asyncio
 import websockets
 
+
 async def on_ping(websocket, ping_data):
     print(f"Received ping: {ping_data}")
     await websocket.pong(ping_data)
     print("Sent pong in response to ping.")
 
+
 async def on_message(websocket, message):
     print(f"Received message: {message}")
 
+
 async def check_ping_messages():
-    uri = "ws://localhost:8080/api/v1/watchtower/log-stream?container=watchtower"  # Replace with your WebSocket server URI
+    # Replace with your WebSocket server URI
+    uri = "ws://localhost:8080/api/v1/robotics_supervisor/log-stream?container=robotics_supervisor"
 
     async with websockets.connect(uri) as websocket:
         while True:
             message = await websocket.recv()
             if message.startswith("ping"):
                 # Extract ping data (if any)
-                ping_data = message.split(" ")[1] if len(message.split(" ")) > 1 else None
+                ping_data = message.split(" ")[1] if len(
+                    message.split(" ")) > 1 else None
                 await on_ping(websocket, ping_data)
             else:
                 await on_message(websocket, message)

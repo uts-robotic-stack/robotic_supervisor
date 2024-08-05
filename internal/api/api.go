@@ -28,6 +28,9 @@ func SetRoutes(router *gin.Engine,
 
 			watchtowerSubgroup.POST("/load", containerHandler.HandleContainerCreate)
 			watchtowerSubgroup.POST("/run", containerHandler.HandleContainerStart)
+			// Load and start
+			// Stop and unload
+			watchtowerSubgroup.POST("/stop-unload", containerHandler.HandleContainerStop)
 		}
 	}
 }
