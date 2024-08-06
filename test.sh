@@ -9,13 +9,7 @@ curl -H "Authorization: Bearer robotics" --request POST -H  "Content-Type: appli
             "action" : "start"
         }
     }
-}' http://localhost:8080/api/v1/robotics_supervisor/load
-
-curl -H "Authorization: Bearer robotics" --request POST -H  "Content-Type: application/json" -d '{
-    "services": {
-        "core": ""
-    }
-}' http://localhost:8080/api/v1/robotics_supervisor/run
+}' http://localhost:8080/api/v1/robotics_supervisor/load-run
 
 curl -H "Authorization: Bearer robotics" --request POST -H  "Content-Type: application/json" -d '{
     "services": {

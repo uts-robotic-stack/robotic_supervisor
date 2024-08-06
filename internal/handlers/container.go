@@ -55,7 +55,7 @@ func (h *ContainerHandler) removeClient(client *Client) {
 }
 
 // Handle create (equivalent to load)
-func (h *ContainerHandler) HandleContainerCreate(c *gin.Context) {
+func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 	log.Info("Received HTTP request to create container")
 
 	var srvMap service.ServiceMap
@@ -98,51 +98,13 @@ func (h *ContainerHandler) HandleContainerCreate(c *gin.Context) {
 			}
 		}
 
-		id, err := h.client.CreateContainer(
+		id, err := h.client.StartContainer(
 			serviceName, *config, *hostConfig, *networkingConfig)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create container: %v", err)})
 			return
 		}
 		resp.ServiceID[serviceName] = id.ShortID()
-	}
-
-	c.JSON(http.StatusOK, resp)
-}
-
-// Handle start
-func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
-	log.Info("Received HTTP request to start container")
-	var srvIDMap service.ServiceIDMap
-	if err := c.ShouldBindJSON(&srvIDMap); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
-		return
-	}
-
-	resp := make(map[string]bool)
-	failedService := ""
-
-	// List all containers
-	containers, _ := h.client.ListContainers(filters.NoFilter)
-
-	for serviceName := range srvIDMap.ServiceID {
-		for _, cnt := range containers {
-			if cnt.Name()[1:] == serviceName {
-				err := h.client.StartContainerByID(cnt.ID().ShortID())
-				resp[serviceName] = true
-				if err != nil {
-					log.Error(err)
-					resp[serviceName] = false
-					failedService += serviceName + " "
-				}
-				break
-			}
-		}
-	}
-
-	if failedService != "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to start " + failedService})
-		return
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -166,7 +128,7 @@ func (h *ContainerHandler) HandleContainerStop(c *gin.Context) {
 	for serviceName := range srvIDMap.ServiceID {
 		for _, cnt := range containers {
 			if cnt.Name()[1:] == serviceName {
-				err := h.client.StopContainer(cnt, 10*time.Second)
+				err := h.client.StopContainer(cnt, time.Second)
 				resp[serviceName] = true
 				if err != nil {
 					log.Error(err)
