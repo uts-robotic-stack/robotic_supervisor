@@ -183,3 +183,18 @@ func (h *ContainerHandler) HandleContainerInspect(c *gin.Context) {
 	log.Info("Received HTTP request to inspect container")
 	c.JSON(http.StatusOK, nil)
 }
+
+func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
+	log.Info("Received HTTP request to get all containers")
+	containers, _ := h.client.ListContainers(filters.NoFilter)
+	containerList := service.ServiceMap{
+		Services: make(map[string]service.Service),
+	}
+	for _, cnt := range containers {
+		containerDetails := service.Service{}
+		containerDetails.Name = cnt.Name()
+		containerDetails.Command = cnt.GetCreateConfig().Cmd
+		containerList.Services[cnt.Name()] = containerDetails
+	}
+	c.JSON(http.StatusOK, containerList)
+}

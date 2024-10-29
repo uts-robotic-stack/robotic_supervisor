@@ -19,16 +19,17 @@ func SetRoutes(router *gin.Engine,
 			deviceSubgroup.GET("/hardware-status", deviceHandler.HandlerWSHardwareStatus)
 		}
 
-		watchtowerSubgroup := v1.Group("/robotics_supervisor")
+		watchtowerSubgroup := v1.Group("/supervisor")
 		{
 			watchtowerSubgroup.POST("/update", watchtowerHandler.HandlePostUpdate)
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
 			watchtowerSubgroup.GET("/log-stream", containerHandler.HandleWSLogs)
 			watchtowerSubgroup.GET("/log", containerHandler.HandlerContainerLogs)
-			// Load and start
-			// Stop and unload
+
 			watchtowerSubgroup.POST("/load-run", containerHandler.HandleContainerStart)
 			watchtowerSubgroup.POST("/stop-unload", containerHandler.HandleContainerStop)
+
+			watchtowerSubgroup.GET("/all", containerHandler.HandleGetAllContainers)
 		}
 	}
 }
