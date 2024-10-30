@@ -3,6 +3,8 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
 type ContainerHandler struct {
@@ -66,6 +69,8 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 
 	// Response
 	resp := service.ServiceIDMap{ServiceID: make(map[string]string)}
+
+	fmt.Println(srvMap)
 
 	for serviceName, serviceReq := range srvMap.Services {
 		config := &container.Config{
@@ -192,9 +197,47 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 	}
 	for _, cnt := range containers {
 		containerDetails := service.Service{}
-		containerDetails.Name = cnt.Name()
+		containerDetails.Name = strings.ReplaceAll(cnt.Name(), "/", "")
 		containerDetails.Command = cnt.GetCreateConfig().Cmd
-		containerList.Services[cnt.Name()] = containerDetails
+		containerDetails.ContainerID = cnt.ContainerInfo().ID
+		containerDetails.Status = cnt.ContainerInfo().State.Status
+		containerList.Services[strings.ReplaceAll(cnt.Name(), "/", "")] = containerDetails
 	}
 	c.JSON(http.StatusOK, containerList)
+}
+
+func (h *ContainerHandler) HandleGetDefaultServices(c *gin.Context) {
+	log.Info("Received HTTP request to get default services")
+
+	// Obtain default services
+	// In the future this should be in a redis instance
+	data, err := os.ReadFile("/config/default_services.yaml")
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+	// Unmarshal YAML data into Go struct
+	var services service.ServiceMap
+	err = yaml.Unmarshal(data, &services)
+	if err != nil {
+		log.Fatalf("Unable to read settings.yaml to obtain default services: %v", err)
+	}
+	c.JSON(http.StatusOK, services)
+}
+
+func (h *ContainerHandler) HandleGetExcludedServices(c *gin.Context) {
+	log.Info("Received HTTP request to get default services")
+
+	// Obtain default services
+	// In the future this should be in a redis instance
+	data, err := os.ReadFile("/config/excluded_services.yaml")
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+	// Unmarshal YAML data into Go struct
+	var services map[string][]string
+	err = yaml.Unmarshal(data, &services)
+	if err != nil {
+		log.Fatalf("Unable to read settings.yaml to obtain default services: %v", err)
+	}
+	c.JSON(http.StatusOK, services["services"])
 }

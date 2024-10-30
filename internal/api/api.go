@@ -30,6 +30,10 @@ func SetRoutes(router *gin.Engine,
 			watchtowerSubgroup.POST("/stop-unload", containerHandler.HandleContainerStop)
 
 			watchtowerSubgroup.GET("/all", containerHandler.HandleGetAllContainers)
+			watchtowerSubgroup.GET("/default", containerHandler.HandleGetDefaultServices)
+
+			watchtowerSubgroup.GET("/excluded", containerHandler.HandleGetExcludedServices)
+
 		}
 	}
 }
