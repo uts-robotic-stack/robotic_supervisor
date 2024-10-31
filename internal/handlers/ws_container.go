@@ -57,7 +57,7 @@ func (c *Client) broadcastLogs(containerName string) {
 		return
 	}
 	// var buf bytes.Buffer
-	logs, err := c.handler.client.StreamLogs(container, true)
+	logs, err := c.handler.client.StreamLogs(container, true, "20")
 	if err != nil {
 		return
 	}

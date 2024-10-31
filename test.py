@@ -54,7 +54,7 @@ async def on_message(websocket, message):
 
 async def check_ping_messages():
     # Replace with your WebSocket server URI
-    uri = "ws://localhost:8080/api/v1/robotics_supervisor/log-stream?container=robotics_supervisor"
+    uri = "ws://localhost:8080/api/v1/supervisor/log-stream?container=robotics_supervisor"
 
     async with websockets.connect(uri) as websocket:
         while True:

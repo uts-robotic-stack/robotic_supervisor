@@ -70,7 +70,7 @@ func GetLogs(client containerService.Client, name string) ([]byte, error) {
 		return output, errors.New("cannot find container")
 	}
 
-	logs, err := client.StreamLogs(container, false)
+	logs, err := client.StreamLogs(container, false, "100")
 	if err != nil {
 		return output, err
 	}
@@ -111,7 +111,7 @@ func BroadcastLogs(conn *websocket.Conn, client containerService.Client, name st
 	defer ticker.Stop()
 
 	for range ticker.C {
-		logs, err := client.StreamLogs(container, false)
+		logs, err := client.StreamLogs(container, false, "1")
 		if err != nil {
 			return
 		}
