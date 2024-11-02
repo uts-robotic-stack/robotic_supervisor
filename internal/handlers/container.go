@@ -69,9 +69,6 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 
 	// Response
 	resp := service.ServiceIDMap{ServiceID: make(map[string]string)}
-
-	fmt.Println(srvMap)
-
 	for serviceName, serviceReq := range srvMap.Services {
 		config := &container.Config{
 			Image: serviceReq.Image,

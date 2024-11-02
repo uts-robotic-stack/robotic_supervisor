@@ -218,9 +218,10 @@ func Run(c *cobra.Command, names []string) {
 	}
 
 	containerHandler := handlers.NewContainerHandler(client, 1)
+	userHandler := handlers.NewUserHandler()
 
 	// Set routes
-	api.SetRoutes(router, &deviceHandler, &watchtowerHandler, containerHandler)
+	api.SetRoutes(router, &deviceHandler, &watchtowerHandler, containerHandler, userHandler)
 
 	log.Infof("Serving api at port %v", port)
 	// Start api

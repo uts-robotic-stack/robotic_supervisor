@@ -9,7 +9,8 @@ import (
 func SetRoutes(router *gin.Engine,
 	deviceHandler *handlers.DeviceHandler,
 	watchtowerHandler *handlers.WatchtowerHandler,
-	containerHandler *handlers.ContainerHandler) {
+	containerHandler *handlers.ContainerHandler,
+	userHandler *handlers.UserHandler) {
 
 	v1 := router.Group("/api/v1")
 	{
@@ -17,6 +18,8 @@ func SetRoutes(router *gin.Engine,
 		{
 			deviceSubgroup.GET("/info", deviceHandler.HandleGetDeviceInfo)
 			deviceSubgroup.GET("/hardware-status", deviceHandler.HandlerWSHardwareStatus)
+			deviceSubgroup.GET("/shutdown", deviceHandler.HandleShutdown)
+			deviceSubgroup.GET("/restart", deviceHandler.HandleRestart)
 		}
 
 		watchtowerSubgroup := v1.Group("/supervisor")
@@ -33,7 +36,12 @@ func SetRoutes(router *gin.Engine,
 			watchtowerSubgroup.GET("/default", containerHandler.HandleGetDefaultServices)
 
 			watchtowerSubgroup.GET("/excluded", containerHandler.HandleGetExcludedServices)
+		}
 
+		signInSubgroup := v1.Group("/signin")
+		{
+			signInSubgroup.POST("", userHandler.HandleUserSignIn)
+			signInSubgroup.GET("/role", userHandler.HandleRole)
 		}
 	}
 }
