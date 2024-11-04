@@ -1,6 +1,6 @@
 #!/bin/bash
 
-docker run -d --name "robotics_supervisor" \
+docker run -d --name "robotic_supervisor" \
   --tty \
   --privileged \
   --restart "always" \
@@ -13,4 +13,4 @@ docker run -d --name "robotics_supervisor" \
   -p 8080:8080 \
   --mount type=bind,source="$(pwd)"/config,target=/config \
   --label=com.centurylinklabs.watchtower.enable=false \
-  dkhoanguyen/robotics_supervisor:latest --interval 300 --http-api-update --port 8080 --update-on-startup
+  dkhoanguyen/robotic_supervisor:latest --interval 300 --http-api-update --port 8080 --update-on-startup

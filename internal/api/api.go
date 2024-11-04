@@ -28,13 +28,10 @@ func SetRoutes(router *gin.Engine,
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
 			watchtowerSubgroup.GET("/log-stream", containerHandler.HandleWSLogs)
 			watchtowerSubgroup.GET("/log", containerHandler.HandlerContainerLogs)
-
 			watchtowerSubgroup.POST("/load-run", containerHandler.HandleContainerStart)
 			watchtowerSubgroup.POST("/stop-unload", containerHandler.HandleContainerStop)
-
 			watchtowerSubgroup.GET("/all", containerHandler.HandleGetAllContainers)
 			watchtowerSubgroup.GET("/default", containerHandler.HandleGetDefaultServices)
-
 			watchtowerSubgroup.GET("/excluded", containerHandler.HandleGetExcludedServices)
 		}
 
