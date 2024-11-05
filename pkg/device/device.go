@@ -1,11 +1,10 @@
 package device
 
 import (
-	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/dkhoanguyen/watchtower/pkg/types"
+	"github.com/shirou/gopsutil/v4/host"
 )
 
 const (
@@ -26,7 +25,7 @@ func MakeDevice() (*types.Device, error) {
 		deviceType = Unknown
 	}
 
-	onlineDuration, err := getUptimeInHours()
+	onlineDuration, err := getUptimeSeconds()
 	if err != nil {
 		onlineDuration = 0
 	}
@@ -45,17 +44,10 @@ func getDeviceType() (string, error) {
 	return Rpi4_8GB, nil
 }
 
-func getUptimeInHours() (int64, error) {
-	cmd := exec.Command("uptime", "-s")
-	output, err := cmd.Output()
+func getUptimeSeconds() (int64, error) {
+	uptimeSeconds, err := host.Uptime()
 	if err != nil {
 		return 0, err
 	}
-	uptimeString := strings.TrimSpace(string(output))
-
-	uptime, err := time.Parse("2006-01-02 15:04:05", uptimeString)
-	if err != nil {
-		return 0, err
-	}
-	return int64(time.Since(uptime).Seconds()), nil
+	return int64(uptimeSeconds), nil
 }

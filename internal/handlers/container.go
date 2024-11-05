@@ -71,10 +71,11 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 	resp := service.ServiceIDMap{ServiceID: make(map[string]string)}
 	for serviceName, serviceReq := range srvMap.Services {
 		config := &container.Config{
-			Image: serviceReq.Image,
-			Tty:   serviceReq.Tty,
-			Env:   service.FormatEnvVars(serviceReq.EnvVars),
-			Cmd:   serviceReq.Command,
+			Image:  serviceReq.Image,
+			Tty:    serviceReq.Tty,
+			Env:    service.FormatEnvVars(serviceReq.EnvVars),
+			Cmd:    serviceReq.Command,
+			Labels: serviceReq.Labels,
 		}
 
 		hostConfig := &container.HostConfig{
@@ -193,11 +194,26 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 		Services: make(map[string]service.Service),
 	}
 	for _, cnt := range containers {
-		containerDetails := service.Service{}
+		containerDetails := service.Service{
+			EnvVars: make(map[string]string),
+			Sysctls: make(map[string]string),
+		}
+
 		containerDetails.Name = strings.ReplaceAll(cnt.Name(), "/", "")
 		containerDetails.Command = cnt.GetCreateConfig().Cmd
 		containerDetails.ContainerID = cnt.ContainerInfo().ID
 		containerDetails.Status = cnt.ContainerInfo().State.Status
+		containerDetails.Labels = cnt.GetCreateConfig().Labels
+
+		// Get env vars and convert from list of string to map[string]string
+		for _, envVar := range cnt.ContainerInfo().Config.Env {
+			parts := strings.SplitN(envVar, "=", 2)
+			if len(parts) == 2 {
+				key := strings.ToUpper(parts[0])      // Capitalize the key
+				value := parts[1]                     // Get the value
+				containerDetails.EnvVars[key] = value // Add to map
+			}
+		}
 		containerList.Services[strings.ReplaceAll(cnt.Name(), "/", "")] = containerDetails
 	}
 	c.JSON(http.StatusOK, containerList)

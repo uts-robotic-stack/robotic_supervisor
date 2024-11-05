@@ -19,7 +19,7 @@
 
 # curl -H "Authorization: Bearer robotics" --request GET  http://localhost:8080/api/v1/supervisor/inspect?container=watchtower
 
-# curl -H "Authorization: Bearer robotics" --request GET  http://localhost:8080/api/v1/device/info
+curl -H "Authorization: Bearer robotics" --request GET  http://192.168.100.70:8080/api/v1/device/info
 
 
 # curl -H "Authorization: Bearer robotics" -H "Content-Type: application/json" --request GET  http://localhost:8080/api/v1/supervisor/default

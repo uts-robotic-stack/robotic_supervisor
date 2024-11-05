@@ -25,4 +25,5 @@ type Service struct {
 	Resources       ResourceConfig    `yaml:"resources" json:"resources"`
 	Sysctls         map[string]string `yaml:"sysctls" json:"sysctls"`
 	Status          string            `yaml:"status" json:"status"`
+	Labels          map[string]string `yaml:"labels" json:"labels"`
 }
