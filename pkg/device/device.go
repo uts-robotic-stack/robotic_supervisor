@@ -1,7 +1,6 @@
 package device
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/dkhoanguyen/watchtower/pkg/types"
@@ -32,16 +31,15 @@ func MakeDevice() (*types.Device, error) {
 	}
 	devices, err := GetDevices()
 	if err != nil {
-		// log.Fatalf("Error retrieving devices: %v", err)
+
 	}
-	fmt.Println(devices)
 
 	return &types.Device{
 		Type:            deviceType,
 		LastOn:          time.Now().Format(time.RFC3339),
 		OnDuration:      onlineDuration,
 		SoftwareVersion: "",
-		IpAddress:       "192.168.0.1",
+		IpAddress:       devices,
 		Fleet:           "UTS Mechatronics Lab",
 	}, err
 }
