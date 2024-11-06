@@ -3,7 +3,6 @@ package device
 import (
 	"encoding/binary"
 	"fmt"
-	"log"
 	"net"
 
 	"github.com/dkhoanguyen/watchtower/pkg/types"
@@ -40,7 +39,6 @@ func GetDevices() (map[string]types.NetworkDevice, error) {
 	for _, devicePath := range devicePaths {
 		device, err := getDeviceInfo(conn, devicePath)
 		if err != nil {
-			log.Printf("Failed to get information for device %s: %v", devicePath, err)
 			continue
 		}
 		// Assuming device.DeviceName is unique and can be used as the key
@@ -64,7 +62,7 @@ func getDeviceInfo(conn *dbus.Conn, devicePath dbus.ObjectPath) (types.NetworkDe
 	var ip4ConfigPath dbus.ObjectPath
 	err = deviceObj.Call("org.freedesktop.DBus.Properties.Get", 0, networkManagerDeviceType, "Ip4Config").Store(&ip4ConfigPath)
 	if err != nil || ip4ConfigPath == "" {
-		// return nil, err
+		return types.NetworkDevice{}, fmt.Errorf("failed to get device interface name: %v", err)
 	}
 
 	// Retrieve the Interface property (e.g., "eth0" or "wlan0")

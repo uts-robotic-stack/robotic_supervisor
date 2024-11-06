@@ -1,22 +1,54 @@
-FROM --platform=$BUILDPLATFORM alpine:3.19.0 as alpine
+#
+# Builder
+#
+
+FROM golang:alpine as builder
+
+# use version (for example "v0.3.3") or "main"
+ARG WATCHTOWER_VERSION=main
+
+# Pre download required modules to avoid redownloading at each build thanks to docker layer caching.
+# Copying go.mod and go.sum ensure to invalid the layer/build cache if there is a change in module requirement
+WORKDIR /watchtower
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
 
 RUN apk add --no-cache \
+    alpine-sdk \
     ca-certificates \
-    tzdata
+    git \
+    tzdata \
+    libusb-dev \
+    procps
+
+COPY . /watchtower
+
+RUN \
+    cd /watchtower && \
+    \
+    GO111MODULE=on CGO_ENABLED=1 GOOS=linux go build -a -ldflags "-extldflags '-static'" .
+
+
+#
+# watchtower
+#
 
 FROM scratch
+
 LABEL "com.centurylinklabs.watchtower"="true"
 
-COPY --from=alpine \
-    /etc/ssl/certs/ca-certificates.crt \
-    /etc/ssl/certs/ca-certificates.crt
-COPY --from=alpine \
-    /usr/share/zoneinfo \
-    /usr/share/zoneinfo
+# copy files from other container
+COPY --from=builder /bin /bin
+COPY --from=builder /lib /lib
+COPY --from=builder /usr /usr
+COPY --from=builder /etc /etc
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /watchtower/watchtower /watchtower
 
-EXPOSE 8080
-
-COPY watchtower /
+RUN mkdir /config
+COPY ./config/ /config/
 
 HEALTHCHECK CMD [ "/watchtower", "--health-check"]
 

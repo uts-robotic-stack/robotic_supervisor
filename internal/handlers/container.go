@@ -238,7 +238,7 @@ func (h *ContainerHandler) HandleGetDefaultServices(c *gin.Context) {
 }
 
 func (h *ContainerHandler) HandleGetExcludedServices(c *gin.Context) {
-	log.Info("Received HTTP request to get default services")
+	log.Info("Received HTTP request to get excluded services")
 
 	// Obtain default services
 	// In the future this should be in a redis instance

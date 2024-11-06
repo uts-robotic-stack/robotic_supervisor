@@ -2,3 +2,4 @@ services:
   - rosbridge
   - robotic_dashboard
   - robotic_supervisor
+  - rpi3-wifiap
