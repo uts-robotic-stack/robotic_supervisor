@@ -27,3 +27,8 @@ type Service struct {
 	Status          string            `yaml:"status" json:"status"`
 	Labels          map[string]string `yaml:"labels" json:"labels"`
 }
+
+type Image struct {
+	Name string `yaml:"name" json:"name"`
+	ID   string `yaml:"id" json:"id"`
+}

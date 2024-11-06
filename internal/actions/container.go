@@ -14,30 +14,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// func StartContainer(client containerService.Client, service *srv.Service) error {
-// 	// Create config
-// 	containerConfig, networkConfig, hostConfig := makeContainerCreateOptions(service, nil)
-// 	_, err := client.StartContainer(
-// 		service.Name, containerConfig, hostConfig, networkConfig)
-// 	return err
-// }
-
-// func StopContainer(client containerService.Client, service *srv.Service) error {
-// 	containers, _ := client.ListContainers(filters.NoFilter)
-// 	for _, container := range containers {
-// 		// Skip if watchtower
-// 		if container.IsWatchtower() {
-// 			continue
-// 		}
-// 		if container.Name()[1:] == service.Name {
-// 			// 10 seconds stop timeout
-// 			err := client.StopContainer(container, 10)
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }
-
 func InspectContainer(client containerService.Client, name string) (dockerTypes.ContainerJSON, error) {
 	containers, _ := client.ListContainers(filters.NoFilter)
 	var container types.Container
