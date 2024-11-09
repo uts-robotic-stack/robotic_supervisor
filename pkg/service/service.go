@@ -10,7 +10,7 @@ type ServiceIDMap struct {
 
 type Service struct {
 	Action          string            `yaml:"action" json:"action"`
-	Image           string            `yaml:"image" json:"image"`
+	Image           Image             `yaml:"image" json:"image"`
 	ContainerID     string            `yaml:"container_id" json:"container_id"`
 	Name            string            `yaml:"name" json:"name"`
 	Tty             bool              `yaml:"tty" json:"tty"`

@@ -71,7 +71,7 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 	resp := service.ServiceIDMap{ServiceID: make(map[string]string)}
 	for serviceName, serviceReq := range srvMap.Services {
 		config := &container.Config{
-			Image:  serviceReq.Image,
+			Image:  serviceReq.Image.Name,
 			Tty:    serviceReq.Tty,
 			Env:    service.FormatEnvVars(serviceReq.EnvVars),
 			Cmd:    serviceReq.Command,
@@ -197,6 +197,7 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 		containerDetails := service.Service{
 			EnvVars: make(map[string]string),
 			Sysctls: make(map[string]string),
+			Labels:  make(map[string]string),
 		}
 
 		containerDetails.Name = strings.ReplaceAll(cnt.Name(), "/", "")
@@ -204,6 +205,14 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 		containerDetails.ContainerID = cnt.ContainerInfo().ID
 		containerDetails.Status = cnt.ContainerInfo().State.Status
 		containerDetails.Labels = cnt.GetCreateConfig().Labels
+
+		containerDetails.Image.Name = cnt.ContainerInfo().Image
+		containerDetails.Image.ID = cnt.ImageInfo().ID
+		containerDetails.Labels = cnt.GetCreateConfig().Labels
+		containerDetails.Privileged = cnt.GetCreateHostConfig().Privileged
+		containerDetails.Resources.CPU = cnt.GetCreateHostConfig().Resources.CPUShares
+		containerDetails.Resources.Memory = cnt.GetCreateHostConfig().Memory
+		containerDetails.Sysctls = cnt.GetCreateHostConfig().Sysctls
 
 		// Get env vars and convert from list of string to map[string]string
 		for _, envVar := range cnt.ContainerInfo().Config.Env {
