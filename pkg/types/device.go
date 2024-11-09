@@ -8,4 +8,5 @@ type Device struct {
 	IpAddress       map[string]NetworkDevice `json:"ip_address"`
 	Fleet           string                   `json:"fleet"`
 	InternetStatus  int                      `json:"internet_status"`
+	SerialDevices   []string                 `json:"serial_devices"`
 }

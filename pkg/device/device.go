@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"regexp"
 	"time"
 
 	"github.com/dkhoanguyen/watchtower/pkg/types"
@@ -61,6 +63,10 @@ func MakeDevice() (*types.Device, error) {
 
 	}
 
+	serialDevices, err := GetSerialDevices()
+	if err != nil {
+		serialDevices = make([]string, 0)
+	}
 	status, _ := CheckInternetConnection()
 
 	return &types.Device{
@@ -71,6 +77,7 @@ func MakeDevice() (*types.Device, error) {
 		IpAddress:       devices,
 		InternetStatus:  int(status),
 		Fleet:           "UTS Mechatronics Lab",
+		SerialDevices:   serialDevices,
 	}, err
 }
 
@@ -127,7 +134,24 @@ func checkDNS(dnsServer string) bool {
 	return true // DNS lookup succeeded
 }
 
-func main() {
-	status, message := CheckInternetConnection()
-	fmt.Printf("Status: %v\nDetails: %s\n", status, message)
+// GetSerialDevices lists all serial devices in the /dev directory
+func GetSerialDevices() ([]string, error) {
+	// Define the regular expression to match ttyUSBx and ttyACMx devices
+	serialDevicePattern := regexp.MustCompile(`^tty(USB|ACM)\d+$`)
+
+	// Read the /dev directory
+	files, err := os.ReadDir("/dev")
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter files matching the pattern
+	var serialDevices []string
+	for _, file := range files {
+		if serialDevicePattern.MatchString(file.Name()) {
+			serialDevices = append(serialDevices, file.Name())
+		}
+	}
+
+	return serialDevices, nil
 }

@@ -29,6 +29,7 @@ else
     -e WATCHTOWER_HTTP_API_PERIODIC_POLLS=true \
     -e DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
     -p 8080:8080 \
+    --mount type=bind,source=/dev,target=/dev \
     --mount type=bind,source="$(pwd)"/config,target=/config \
     --mount type=bind,source=/run/dbus/system_bus_socket,target=/run/dbus/system_bus_socket \
     --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
