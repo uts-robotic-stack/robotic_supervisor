@@ -1,0 +1,13 @@
+users:
+  admin:
+    username: robotic
+    password: admin
+    role: admin
+
+  maintainer:
+    username: maintainer
+    password: maintainer
+    role: maintainer
+
+  user:
+    role: user
