@@ -12,9 +12,11 @@ services:
       ROS_MASTER_URI: http://localhost:11311
       ROS_IP: "192.168.27.1"
       ROBOT_IP: "192.168.0.250"
-    image: 
+    image:
       name: dkhoanguyen/robotic_base:latest
-      id: 
+      id:
+      created:
+      size:
     command:
       - bash -c "source /opt/ros/noetic/setup.bash && source /ur_ws/devel/setup.bash && \
         source /onrobot_ws/devel/setup.bash && \
@@ -36,9 +38,11 @@ services:
       ROS_MASTER_URI: http://localhost:11311
       ROS_IP: "192.168.27.1"
       PORT_NAME: ttyUSB0
-    image: 
+    image:
       name: dkhoanguyen/robotic_base:latest
-      id: 
+      id:
+      created:
+      size:
     command:
       - bash -c "source /opt/ros/noetic/setup.bash && source /db_ws/devel/setup.bash && \
         roslaunch dobot_magician_driver dobot_magician.launch port_name:=${PORT_NAME}"

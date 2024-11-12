@@ -109,7 +109,6 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 		}
 		resp.ServiceID[serviceName] = id.ShortID()
 	}
-
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -204,15 +203,17 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 		containerDetails.Command = cnt.GetCreateConfig().Cmd
 		containerDetails.ContainerID = cnt.ContainerInfo().ID
 		containerDetails.Status = cnt.ContainerInfo().State.Status
-		containerDetails.Labels = cnt.GetCreateConfig().Labels
 
-		containerDetails.Image.Name = cnt.ContainerInfo().Image
-		containerDetails.Image.ID = cnt.ImageInfo().ID
+		containerDetails.Image.Name = cnt.ContainerInfo().Config.Image
+		containerDetails.Image.ID = cnt.ContainerInfo().Image
+		containerDetails.Image.Created = cnt.ImageInfo().Created
+
 		containerDetails.Labels = cnt.GetCreateConfig().Labels
 		containerDetails.Privileged = cnt.GetCreateHostConfig().Privileged
 		containerDetails.Resources.CPU = cnt.GetCreateHostConfig().Resources.CPUShares
 		containerDetails.Resources.Memory = cnt.GetCreateHostConfig().Memory
 		containerDetails.Sysctls = cnt.GetCreateHostConfig().Sysctls
+		containerDetails.Restart = cnt.GetCreateHostConfig().RestartPolicy.Name
 
 		// Get env vars and convert from list of string to map[string]string
 		for _, envVar := range cnt.ContainerInfo().Config.Env {

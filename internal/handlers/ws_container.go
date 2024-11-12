@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"bufio"
+	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dkhoanguyen/watchtower/pkg/filters"
 	"github.com/dkhoanguyen/watchtower/pkg/types"
@@ -56,6 +58,7 @@ func (c *Client) broadcastLogs(containerName string) {
 	if !foundContainer {
 		return
 	}
+	fmt.Println(container.Name())
 	// var buf bytes.Buffer
 	logs, err := c.handler.client.StreamLogs(container, true, "20")
 	if err != nil {
@@ -103,6 +106,7 @@ func (c *Client) broadcastLogs(containerName string) {
 				// Return to close the goroutine
 				return
 			}
+			message = sanitizeAndClean(message)
 			if err := c.connection.WriteMessage(websocket.TextMessage, message); err != nil {
 				log.Error(err)
 			}
@@ -155,4 +159,24 @@ func (c *Client) readMessages() {
 // pongHandler is used to handle PongMessages for the Client
 func (c *Client) pongHandler(pongMsg string) error {
 	return c.connection.SetReadDeadline(time.Now().Add(pongWait))
+}
+
+// sanitizeAndClean removes all non-printable and non-UTF-8 characters from the input byte slice
+func sanitizeAndClean(data []byte) []byte {
+	var sanitized strings.Builder
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		if r == utf8.RuneError && size == 1 {
+			// Invalid UTF-8 byte, skip it
+			data = data[1:]
+			continue
+		}
+		// Check if rune is printable ASCII or common UTF-8
+		if r >= 32 && r <= 126 || r == '\n' || r == '\t' {
+			sanitized.WriteRune(r)
+		}
+		// Move to next rune
+		data = data[size:]
+	}
+	return []byte(sanitized.String())
 }

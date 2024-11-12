@@ -29,6 +29,8 @@ type Service struct {
 }
 
 type Image struct {
-	Name string `yaml:"name" json:"name"`
-	ID   string `yaml:"id" json:"id"`
+	Name    string `yaml:"name" json:"name"`
+	ID      string `yaml:"id" json:"id"`
+	Created string `yaml:"created" json:"created"`
+	Size    string `yaml:"size" json:"size"`
 }
