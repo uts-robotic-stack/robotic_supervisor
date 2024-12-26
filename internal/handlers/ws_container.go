@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bufio"
-	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -58,7 +57,6 @@ func (c *Client) broadcastLogs(containerName string) {
 	if !foundContainer {
 		return
 	}
-	fmt.Println(container.Name())
 	// var buf bytes.Buffer
 	logs, err := c.handler.client.StreamLogs(container, true, "20")
 	if err != nil {

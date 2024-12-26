@@ -71,11 +71,12 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 	resp := service.ServiceIDMap{ServiceID: make(map[string]string)}
 	for serviceName, serviceReq := range srvMap.Services {
 		config := &container.Config{
-			Image:  serviceReq.Image.Name,
-			Tty:    serviceReq.Tty,
-			Env:    service.FormatEnvVars(serviceReq.EnvVars),
-			Cmd:    serviceReq.Command,
-			Labels: serviceReq.Labels,
+			Image:      serviceReq.Image.Name,
+			Tty:        serviceReq.Tty,
+			Env:        service.FormatEnvVars(serviceReq.EnvVars),
+			Entrypoint: []string{},
+			Cmd:        serviceReq.Command,
+			Labels:     serviceReq.Labels,
 		}
 
 		hostConfig := &container.HostConfig{

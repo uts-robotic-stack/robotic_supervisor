@@ -18,13 +18,15 @@ services:
       created:
       size:
     command:
-      - bash -c "source /opt/ros/noetic/setup.bash && source /ur_ws/devel/setup.bash && \
-        source /onrobot_ws/devel/setup.bash && \
-        roslaunch ur_robot_driver ur3e_bringup.launch \
-        robot_model:=ur3e \
-        onrobot_model:=rg2 \
-        robot_ip:=${ROBOT_IP} \
-        kinematics_config:=/calibration_file/ur3e_calibration.yaml"
+      - bash 
+      - -c 
+      - source /opt/ros/noetic/setup.bash && source /ur_ws/devel/setup.bash && 
+        source /onrobot_ws/devel/setup.bash && 
+        roslaunch ur_robot_driver ur3e_bringup.launch 
+        robot_model:=ur3e 
+        onrobot_model:=rg2 
+        robot_ip:=${ROBOT_IP} 
+        kinematics_config:=/calibration_file/ur3e_calibration.yaml
 
   dobot_controller:
     name: dobot_controller
@@ -44,5 +46,7 @@ services:
       created:
       size:
     command:
-      - bash -c "source /opt/ros/noetic/setup.bash && source /db_ws/devel/setup.bash && \
-        roslaunch dobot_magician_driver dobot_magician.launch port_name:=${PORT_NAME}"
+      - bash 
+      - -c 
+      - source /opt/ros/noetic/setup.bash && source /db_ws/devel/setup.bash && 
+        roslaunch dobot_magician_driver dobot_magician.launch port_name:=$PORTNAME
