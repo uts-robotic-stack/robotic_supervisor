@@ -42,6 +42,7 @@ var (
 	rollingRestart    bool
 	scope             string
 	labelPrecedence   bool
+	redisAddr         string
 )
 
 var rootCmd = NewRootCommand()
@@ -66,6 +67,7 @@ func init() {
 	flags.RegisterDockerFlags(rootCmd)
 	flags.RegisterSystemFlags(rootCmd)
 	flags.RegisterNotificationFlags(rootCmd)
+	rootCmd.PersistentFlags().StringVar(&redisAddr, "redis-addr", "redis:6379", "Address of the Redis server")
 }
 
 // Execute the root func and exit in case of errors
@@ -217,7 +219,7 @@ func Run(c *cobra.Command, names []string) {
 		HardwareStatusFrequency: 0.1, // Once every 10 seconds
 	}
 
-	containerHandler := handlers.NewContainerHandler(client, 1)
+	containerHandler := handlers.NewContainerHandler(client, 1, redisAddr)
 	userHandler := handlers.NewUserHandler()
 
 	// Set routes
