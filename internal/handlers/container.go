@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"context"
 
 	"github.com/dkhoanguyen/watchtower/internal/actions"
 	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
@@ -15,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -25,13 +29,18 @@ type ContainerHandler struct {
 	logsFrequency float64
 	wsClients     ClientList
 	sync.Mutex
+	redisClient *redis.Client
 }
 
-func NewContainerHandler(client containerService.Client, logFreq float64) *ContainerHandler {
+func NewContainerHandler(client containerService.Client, logFreq float64, redisAddr string) *ContainerHandler {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
 	return &ContainerHandler{
 		client:        client,
 		logsFrequency: logFreq,
 		wsClients:     make(ClientList),
+		redisClient:   rdb,
 	}
 }
 
@@ -244,6 +253,23 @@ func (h *ContainerHandler) HandleGetDefaultServices(c *gin.Context) {
 	err = yaml.Unmarshal(data, &services)
 	if err != nil {
 		log.Fatalf("Unable to read settings.yaml to obtain default services: %v", err)
+	}
+	c.JSON(http.StatusOK, services)
+}
+
+func (h *ContainerHandler) HandleGetDefaultServicesFromRedis(c *gin.Context) {
+	log.Info("Received HTTP request to get default services from Redis")
+
+	ctx := context.Background()
+	data, err := h.redisClient.Get(ctx, "default_services").Result()
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+	// Unmarshal JSON data into Go struct
+	var services service.ServiceMap
+	err = json.Unmarshal([]byte(data), &services)
+	if err != nil {
+		log.Fatalf("Unable to read default services from Redis: %v", err)
 	}
 	c.JSON(http.StatusOK, services)
 }
