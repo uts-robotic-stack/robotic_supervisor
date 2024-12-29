@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"context"
-
 	"github.com/dkhoanguyen/watchtower/internal/actions"
 	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
 	"github.com/dkhoanguyen/watchtower/pkg/filters"
@@ -18,7 +16,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -29,18 +26,15 @@ type ContainerHandler struct {
 	logsFrequency float64
 	wsClients     ClientList
 	sync.Mutex
-	redisClient *redis.Client
+	redisHandler *RedisHandler
 }
 
-func NewContainerHandler(client containerService.Client, logFreq float64, redisAddr string) *ContainerHandler {
-	rdb := redis.NewClient(&redis.Options{
-		Addr: redisAddr,
-	})
+func NewContainerHandler(client containerService.Client, logFreq float64, redisHandler *RedisHandler) *ContainerHandler {
 	return &ContainerHandler{
 		client:        client,
 		logsFrequency: logFreq,
 		wsClients:     make(ClientList),
-		redisClient:   rdb,
+		redisHandler:  redisHandler,
 	}
 }
 
@@ -240,28 +234,9 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 }
 
 func (h *ContainerHandler) HandleGetDefaultServices(c *gin.Context) {
-	log.Info("Received HTTP request to get default services")
-
-	// Obtain default services
-	// In the future this should be in a redis instance
-	data, err := os.ReadFile("/config/default_services.yaml")
-	if err != nil {
-		log.Fatalf("error: %v", err)
-	}
-	// Unmarshal YAML data into Go struct
-	var services service.ServiceMap
-	err = yaml.Unmarshal(data, &services)
-	if err != nil {
-		log.Fatalf("Unable to read settings.yaml to obtain default services: %v", err)
-	}
-	c.JSON(http.StatusOK, services)
-}
-
-func (h *ContainerHandler) HandleGetDefaultServicesFromRedis(c *gin.Context) {
 	log.Info("Received HTTP request to get default services from Redis")
-
-	ctx := context.Background()
-	data, err := h.redisClient.Get(ctx, "default_services").Result()
+	data, err := h.redisHandler.Get(c, "default_services")
+	fmt.Println(data)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
