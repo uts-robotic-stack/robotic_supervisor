@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 type ContainerHandler struct {
@@ -236,7 +234,6 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 func (h *ContainerHandler) HandleGetDefaultServices(c *gin.Context) {
 	log.Info("Received HTTP request to get default services from Redis")
 	data, err := h.redisHandler.Get(c, "default_services")
-	fmt.Println(data)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -251,18 +248,16 @@ func (h *ContainerHandler) HandleGetDefaultServices(c *gin.Context) {
 
 func (h *ContainerHandler) HandleGetExcludedServices(c *gin.Context) {
 	log.Info("Received HTTP request to get excluded services")
-
-	// Obtain default services
-	// In the future this should be in a redis instance
-	data, err := os.ReadFile("/config/excluded_services.yaml")
+	data, err := h.redisHandler.Get(c, "excluded_services")
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-	// Unmarshal YAML data into Go struct
-	var services map[string][]string
-	err = yaml.Unmarshal(data, &services)
+	// Unmarshal JSON data into a list
+	var services []string
+	err = json.Unmarshal([]byte(data), &services)
 	if err != nil {
-		log.Fatalf("Unable to read settings.yaml to obtain default services: %v", err)
+		log.Fatalf("Unable to read excluded services from Redis: %v", err)
 	}
-	c.JSON(http.StatusOK, services["services"])
+	// Convert list to a dictionary with key "excluded_services"
+	c.JSON(http.StatusOK, services)
 }

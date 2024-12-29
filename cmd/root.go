@@ -218,7 +218,7 @@ func Run(c *cobra.Command, names []string) {
 			log.Error(err)
 		}
 		var jsonData []byte
-		if jsonData, err = json.Marshal(defaultServices.Services); err != nil {
+		if jsonData, err = json.Marshal(defaultServices); err != nil {
 			log.Error(err)
 		}
 		if err = redisHandler.Set(ctx, "default_services", jsonData); err != nil {
