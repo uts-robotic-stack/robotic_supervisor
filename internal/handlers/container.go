@@ -18,7 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type ContainerHandler struct {
@@ -339,5 +339,6 @@ func (h *ContainerHandler) HandleGetExcludedServices(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse excluded services"})
 		return
 	}
-	c.JSON(http.StatusOK, services["services"])
+	// Convert list to a dictionary with key "excluded_services"
+	c.JSON(http.StatusOK, services)
 }

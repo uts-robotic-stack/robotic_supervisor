@@ -27,6 +27,7 @@ func RegisterDockerFlags(rootCmd *cobra.Command) {
 	flags.StringP("host", "H", envString("DOCKER_HOST"), "daemon socket to connect to")
 	flags.BoolP("tlsverify", "v", envBool("DOCKER_TLS_VERIFY"), "use TLS and verify the remote")
 	flags.StringP("api-version", "a", envString("DOCKER_API_VERSION"), "api version to use by docker client")
+	flags.StringP("redis-addr", "r", "localhost:6379", "Address of the Redis server")
 }
 
 // RegisterSystemFlags that are used by watchtower to modify the program flow

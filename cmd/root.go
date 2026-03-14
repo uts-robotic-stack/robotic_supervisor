@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
 	"math"
 	"os"
 	"os/signal"
@@ -19,10 +21,12 @@ import (
 	"github.com/dkhoanguyen/watchtower/pkg/filters"
 	"github.com/dkhoanguyen/watchtower/pkg/metrics"
 	"github.com/dkhoanguyen/watchtower/pkg/notifications"
+	"github.com/dkhoanguyen/watchtower/pkg/service"
 	t "github.com/dkhoanguyen/watchtower/pkg/types"
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 
 	"github.com/spf13/cobra"
 )
@@ -131,6 +135,8 @@ func PreRun(cmd *cobra.Command, _ []string) {
 
 	notifier = notifications.NewNotifier(cmd)
 	notifier.AddLogHook()
+
+	// Populate redis if data does not exist
 }
 
 // Run is the main execution flow of the command
@@ -144,6 +150,7 @@ func Run(c *cobra.Command, names []string) {
 	healthCheck, _ := c.PersistentFlags().GetBool("health-check")
 	port, _ := c.PersistentFlags().GetString("port")
 	updateOnStartup, _ := c.PersistentFlags().GetBool("update-on-startup")
+	redisAddr, _ = c.PersistentFlags().GetString("redis-addr")
 
 	if healthCheck {
 		// health check should not have pid 1
@@ -192,6 +199,53 @@ func Run(c *cobra.Command, names []string) {
 	// Add logging
 	router.Use(middleware.Logger())
 
+	// Create Redis handler
+	redisHandler := handlers.NewRedisHandler("10.211.55.7:6379", "", 0)
+
+	// Check for data
+	ctx := context.Background()
+	data, err := redisHandler.Get(ctx, "default_services")
+	if err == nil || data == "" {
+		log.Info("Populating redis with default services")
+		// Load default services to redis db
+		yamlData, err := os.ReadFile("/config/default_services.yaml")
+		if err != nil {
+			log.Error(err)
+		}
+		var defaultServices service.ServiceMap
+		if err = yaml.Unmarshal(yamlData, &defaultServices); err != nil {
+			log.Error(err)
+		}
+		var jsonData []byte
+		if jsonData, err = json.Marshal(defaultServices); err != nil {
+			log.Error(err)
+		}
+		if err = redisHandler.Set(ctx, "default_services", jsonData); err != nil {
+			log.Error(err)
+		}
+	}
+
+	data, err = redisHandler.Get(ctx, "excluded_services")
+	if err == nil || data == "" {
+		log.Info("Populating redis with excluded services")
+		yamlData, err := os.ReadFile("/config/excluded_services.yaml")
+		if err != nil {
+			log.Error(err)
+		}
+		var excludedServices map[string][]string
+		err = yaml.Unmarshal(yamlData, &excludedServices)
+		if err != nil {
+			log.Error(err)
+		}
+		var jsonData []byte
+		if jsonData, err = json.Marshal(excludedServices["services"]); err != nil {
+			log.Error(err)
+		}
+		if err = redisHandler.Set(ctx, "excluded_services", jsonData); err != nil {
+			log.Error(err)
+		}
+	}
+
 	// Create handlers
 	watchtowerHandler := handlers.WatchtowerHandler{
 		Client:            &client,
@@ -217,7 +271,11 @@ func Run(c *cobra.Command, names []string) {
 		HardwareStatusFrequency: 0.1, // Once every 10 seconds
 	}
 
+<<<<<<< HEAD
 	containerHandler := handlers.NewContainerHandler(client, 1)
+=======
+	containerHandler := handlers.NewContainerHandler(client, 1, redisHandler)
+>>>>>>> 444ab515f8cff4c150dc4958bb4f1b097639bf9a
 	userHandler := handlers.NewUserHandler()
 
 	// Set routes
