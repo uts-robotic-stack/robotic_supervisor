@@ -18,8 +18,8 @@ func SetRoutes(router *gin.Engine,
 		{
 			deviceSubgroup.GET("/info", deviceHandler.HandleGetDeviceInfo)
 			deviceSubgroup.GET("/hardware-status", deviceHandler.HandlerWSHardwareStatus)
-			deviceSubgroup.GET("/shutdown", deviceHandler.HandleShutdown)
-			deviceSubgroup.GET("/restart", deviceHandler.HandleRestart)
+			deviceSubgroup.POST("/shutdown", deviceHandler.HandleShutdown)
+			deviceSubgroup.POST("/restart", deviceHandler.HandleRestart)
 		}
 
 		watchtowerSubgroup := v1.Group("/supervisor")
@@ -28,11 +28,36 @@ func SetRoutes(router *gin.Engine,
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
 			watchtowerSubgroup.GET("/log-stream", containerHandler.HandleWSLogs)
 			watchtowerSubgroup.GET("/log", containerHandler.HandlerContainerLogs)
-			watchtowerSubgroup.POST("/load-run", containerHandler.HandleContainerStart)
+			watchtowerSubgroup.POST("/load", containerHandler.HandleContainerCreate)
+			watchtowerSubgroup.POST("/run", containerHandler.HandleContainerRun)
+			watchtowerSubgroup.POST("/load-run", containerHandler.HandleContainerCreate)
 			watchtowerSubgroup.POST("/stop-unload", containerHandler.HandleContainerStop)
 			watchtowerSubgroup.GET("/all", containerHandler.HandleGetAllContainers)
 			watchtowerSubgroup.GET("/default", containerHandler.HandleGetDefaultServices)
 			watchtowerSubgroup.GET("/excluded", containerHandler.HandleGetExcludedServices)
+		}
+
+		updatesSubgroup := v1.Group("/updates")
+		{
+			updatesSubgroup.POST("/apply", watchtowerHandler.HandlePostUpdate)
+			updatesSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
+		}
+
+		containersSubgroup := v1.Group("/containers")
+		{
+			containersSubgroup.POST("", containerHandler.HandleContainerCreate)
+			containersSubgroup.POST("/run", containerHandler.HandleContainerRun)
+			containersSubgroup.POST("/stop", containerHandler.HandleContainerStop)
+			containersSubgroup.GET("", containerHandler.HandleGetAllContainers)
+			containersSubgroup.GET("/inspect", containerHandler.HandleContainerInspect)
+			containersSubgroup.GET("/:name/logs", containerHandler.HandlerContainerLogs)
+			containersSubgroup.GET("/:name/logs/stream", containerHandler.HandleWSLogs)
+		}
+
+		servicesSubgroup := v1.Group("/services")
+		{
+			servicesSubgroup.GET("/default", containerHandler.HandleGetDefaultServices)
+			servicesSubgroup.GET("/excluded", containerHandler.HandleGetExcludedServices)
 		}
 
 		signInSubgroup := v1.Group("/signin")

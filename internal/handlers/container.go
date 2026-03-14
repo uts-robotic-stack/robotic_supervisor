@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,16 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"context"
-
 	"github.com/dkhoanguyen/watchtower/internal/actions"
 	containerService "github.com/dkhoanguyen/watchtower/pkg/container"
 	"github.com/dkhoanguyen/watchtower/pkg/filters"
 	"github.com/dkhoanguyen/watchtower/pkg/service"
+	t "github.com/dkhoanguyen/watchtower/pkg/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -29,19 +26,21 @@ type ContainerHandler struct {
 	logsFrequency float64
 	wsClients     ClientList
 	sync.Mutex
-	redisClient *redis.Client
 }
 
-func NewContainerHandler(client containerService.Client, logFreq float64, redisAddr string) *ContainerHandler {
-	rdb := redis.NewClient(&redis.Options{
-		Addr: redisAddr,
-	})
+func NewContainerHandler(client containerService.Client, logFreq float64) *ContainerHandler {
 	return &ContainerHandler{
 		client:        client,
 		logsFrequency: logFreq,
 		wsClients:     make(ClientList),
-		redisClient:   rdb,
 	}
+}
+
+func getContainerName(c *gin.Context) string {
+	if name := c.Param("name"); name != "" {
+		return name
+	}
+	return c.Query("container")
 }
 
 // addClient will add clients to our clientList
@@ -67,7 +66,7 @@ func (h *ContainerHandler) removeClient(client *Client) {
 }
 
 // Handle create (equivalent to load)
-func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
+func (h *ContainerHandler) HandleContainerCreate(c *gin.Context) {
 	log.Info("Received HTTP request to create container")
 
 	var srvMap service.ServiceMap
@@ -111,7 +110,7 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 			}
 		}
 
-		id, err := h.client.StartContainer(
+		id, err := h.client.CreateContainer(
 			serviceName, *config, *hostConfig, *networkingConfig)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create container: %v", err)})
@@ -119,6 +118,54 @@ func (h *ContainerHandler) HandleContainerStart(c *gin.Context) {
 		}
 		resp.ServiceID[serviceName] = id.ShortID()
 	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// Handle run starts an existing container by name.
+// Returns an error if the container does not exist or is already running.
+func (h *ContainerHandler) HandleContainerRun(c *gin.Context) {
+	log.Info("Received HTTP request to run container")
+
+	var srvIDMap service.ServiceIDMap
+	if err := c.ShouldBindJSON(&srvIDMap); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	resp := make(map[string]bool)
+	failedService := ""
+
+	for serviceName := range srvIDMap.ServiceID {
+		cnt, err := h.client.GetContainer(t.ContainerID(serviceName))
+		if err != nil {
+			resp[serviceName] = false
+			failedService += fmt.Sprintf("%s(not found) ", serviceName)
+			continue
+		}
+
+		if cnt.IsRunning() {
+			resp[serviceName] = false
+			failedService += fmt.Sprintf("%s(already running) ", serviceName)
+			continue
+		}
+
+		err = h.client.StartContainerByID(cnt.ContainerInfo().ID)
+		resp[serviceName] = err == nil
+		if err != nil {
+			log.Error(err)
+			failedService += fmt.Sprintf("%s(start failed) ", serviceName)
+		}
+	}
+
+	if failedService != "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Unable to run one or more containers",
+			"details": strings.TrimSpace(failedService),
+			"result":  resp,
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -175,14 +222,14 @@ func (h *ContainerHandler) HandleWSLogs(c *gin.Context) {
 	client := NewWSClient(conn, h)
 	h.addClient(client)
 
-	containerName := c.Query("container")
+	containerName := getContainerName(c)
 	go client.readMessages()
 	go client.broadcastLogs(containerName)
 }
 
 func (h *ContainerHandler) HandlerContainerLogs(c *gin.Context) {
 	log.Info("Received HTTP request to get container logs")
-	containerName := c.Query("container")
+	containerName := getContainerName(c)
 	output, err := actions.GetLogs(h.client, containerName)
 	if err != nil {
 		log.Error(err)
@@ -193,7 +240,23 @@ func (h *ContainerHandler) HandlerContainerLogs(c *gin.Context) {
 // Handle inspect
 func (h *ContainerHandler) HandleContainerInspect(c *gin.Context) {
 	log.Info("Received HTTP request to inspect container")
-	c.JSON(http.StatusOK, nil)
+	containers, err := h.client.ListContainers(filters.NoFilter)
+	if err != nil {
+		log.Errorf("failed to list containers for inspect: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list containers"})
+		return
+	}
+
+	inspectPayload := make(map[string]interface{}, len(containers))
+	for _, cnt := range containers {
+		containerName := strings.TrimPrefix(cnt.Name(), "/")
+		inspectPayload[containerName] = gin.H{
+			"container": cnt.ContainerInfo(),
+			"image":     cnt.ImageInfo(),
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"services": inspectPayload})
 }
 
 func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
@@ -242,34 +305,19 @@ func (h *ContainerHandler) HandleGetAllContainers(c *gin.Context) {
 func (h *ContainerHandler) HandleGetDefaultServices(c *gin.Context) {
 	log.Info("Received HTTP request to get default services")
 
-	// Obtain default services
-	// In the future this should be in a redis instance
 	data, err := os.ReadFile("/config/default_services.yaml")
 	if err != nil {
-		log.Fatalf("error: %v", err)
+		log.Errorf("failed to read default services: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read default services"})
+		return
 	}
-	// Unmarshal YAML data into Go struct
+
 	var services service.ServiceMap
 	err = yaml.Unmarshal(data, &services)
 	if err != nil {
-		log.Fatalf("Unable to read settings.yaml to obtain default services: %v", err)
-	}
-	c.JSON(http.StatusOK, services)
-}
-
-func (h *ContainerHandler) HandleGetDefaultServicesFromRedis(c *gin.Context) {
-	log.Info("Received HTTP request to get default services from Redis")
-
-	ctx := context.Background()
-	data, err := h.redisClient.Get(ctx, "default_services").Result()
-	if err != nil {
-		log.Fatalf("error: %v", err)
-	}
-	// Unmarshal JSON data into Go struct
-	var services service.ServiceMap
-	err = json.Unmarshal([]byte(data), &services)
-	if err != nil {
-		log.Fatalf("Unable to read default services from Redis: %v", err)
+		log.Errorf("failed to parse default services: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse default services"})
+		return
 	}
 	c.JSON(http.StatusOK, services)
 }
@@ -277,17 +325,19 @@ func (h *ContainerHandler) HandleGetDefaultServicesFromRedis(c *gin.Context) {
 func (h *ContainerHandler) HandleGetExcludedServices(c *gin.Context) {
 	log.Info("Received HTTP request to get excluded services")
 
-	// Obtain default services
-	// In the future this should be in a redis instance
 	data, err := os.ReadFile("/config/excluded_services.yaml")
 	if err != nil {
-		log.Fatalf("error: %v", err)
+		log.Errorf("failed to read excluded services: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read excluded services"})
+		return
 	}
-	// Unmarshal YAML data into Go struct
+
 	var services map[string][]string
 	err = yaml.Unmarshal(data, &services)
 	if err != nil {
-		log.Fatalf("Unable to read settings.yaml to obtain default services: %v", err)
+		log.Errorf("failed to parse excluded services: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse excluded services"})
+		return
 	}
 	c.JSON(http.StatusOK, services["services"])
 }

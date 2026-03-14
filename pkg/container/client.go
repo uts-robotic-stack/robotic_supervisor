@@ -373,7 +373,14 @@ func (client dockerClient) StartContainer(name string, config container.Config,
 	}
 
 	createdContainerID := t.ContainerID(createdContainer.ID)
-	c, _ := client.GetContainer(createdContainerID)
+	c, err := client.GetContainer(createdContainerID)
+	if err != nil {
+		return createdContainerID, fmt.Errorf(
+			"container %s created but inspect failed: %w",
+			createdContainerID.ShortID(),
+			err,
+		)
+	}
 	return createdContainerID, client.doStartContainer(bg, c, createdContainer)
 }
 
