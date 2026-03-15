@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/dkhoanguyen/watchtower/internal/actions"
@@ -32,6 +33,11 @@ type WatchtowerHandler struct {
 	Scope             string
 	LabelPrecedence   bool
 	Lock              chan bool
+	AutoUpdateEnabled *atomic.Bool
+}
+
+type autoUpdateToggleRequest struct {
+	Enabled bool `json:"enabled"`
 }
 
 func (w *WatchtowerHandler) HandlePostUpdate(c *gin.Context) {
@@ -126,4 +132,28 @@ func (w *WatchtowerHandler) HandlePostDownload(c *gin.Context) {
 		log.Info("Skipped. Another download process is already running.")
 		c.JSON(http.StatusConflict, "Request dropped. Another download process is already running.")
 	}
+}
+
+func (w *WatchtowerHandler) HandleAutoUpdateStatus(c *gin.Context) {
+	enabled := false
+	if w.AutoUpdateEnabled != nil {
+		enabled = w.AutoUpdateEnabled.Load()
+	}
+	c.JSON(http.StatusOK, gin.H{"auto_update_enabled": enabled})
+}
+
+func (w *WatchtowerHandler) HandleAutoUpdateToggle(c *gin.Context) {
+	var req autoUpdateToggleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	if w.AutoUpdateEnabled == nil {
+		w.AutoUpdateEnabled = &atomic.Bool{}
+	}
+
+	w.AutoUpdateEnabled.Store(req.Enabled)
+	log.Infof("Auto-update is now set to: %t", req.Enabled)
+	c.JSON(http.StatusOK, gin.H{"auto_update_enabled": w.AutoUpdateEnabled.Load()})
 }

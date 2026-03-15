@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -150,7 +151,6 @@ func Run(c *cobra.Command, names []string) {
 	healthCheck, _ := c.PersistentFlags().GetBool("health-check")
 	port, _ := c.PersistentFlags().GetString("port")
 	updateOnStartup, _ := c.PersistentFlags().GetBool("update-on-startup")
-	redisAddr, _ = c.PersistentFlags().GetString("redis-addr")
 
 	if healthCheck {
 		// health check should not have pid 1
@@ -186,6 +186,7 @@ func Run(c *cobra.Command, names []string) {
 	// The lock is shared between the scheduler and the HTTP API. It only allows one update to run at a time.
 	clientLock := make(chan bool, 1)
 	clientLock <- true
+	autoUpdateEnabled := &atomic.Bool{}
 
 	// Create a new Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -264,6 +265,7 @@ func Run(c *cobra.Command, names []string) {
 		Scope:             scope,
 		LabelPrecedence:   labelPrecedence,
 		Lock:              clientLock,
+		AutoUpdateEnabled: autoUpdateEnabled,
 	}
 
 	deviceHandler := handlers.DeviceHandler{
@@ -271,11 +273,7 @@ func Run(c *cobra.Command, names []string) {
 		HardwareStatusFrequency: 0.1, // Once every 10 seconds
 	}
 
-<<<<<<< HEAD
 	containerHandler := handlers.NewContainerHandler(client, 1)
-=======
-	containerHandler := handlers.NewContainerHandler(client, 1, redisHandler)
->>>>>>> 444ab515f8cff4c150dc4958bb4f1b097639bf9a
 	userHandler := handlers.NewUserHandler()
 
 	// Set routes
@@ -287,14 +285,16 @@ func Run(c *cobra.Command, names []string) {
 		router.Run(":" + port)
 	}()
 
-	// Run update once startup to check and download updates from the cloud
+	// Optional startup behavior: check availability and then apply updates once.
 	if updateOnStartup {
-		runCheckForUpdates(filter)
+		if _, err := runCheckForUpdates(filter); err != nil {
+			log.Error(err)
+		}
 		metric := runUpdatesWithNotifications(filter)
 		metrics.RegisterScan(metric)
 	}
 
-	if err := runChecksOnSchedule(c, filter, filterDesc, clientLock); err != nil {
+	if err := runChecksOnSchedule(c, filter, filterDesc, clientLock, autoUpdateEnabled); err != nil {
 		log.Error(err)
 	}
 
@@ -400,7 +400,7 @@ func writeStartupMessage(c *cobra.Command, sched time.Time, filtering string) {
 	}
 }
 
-func runChecksOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lock chan bool) error {
+func runChecksOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lock chan bool, autoUpdateEnabled *atomic.Bool) error {
 	if lock == nil {
 		lock = make(chan bool, 1)
 		lock <- true
@@ -412,8 +412,17 @@ func runChecksOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lo
 		func() {
 			v := <-lock
 			defer func() { lock <- v }()
-			// Check for updates from registry and from local devices
-			runCheckForUpdates(filter)
+			updatesAvailable, err := runCheckForUpdates(filter)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			if updatesAvailable > 0 && autoUpdateEnabled != nil && autoUpdateEnabled.Load() {
+				log.Infof("Auto-update is enabled. Applying updates for %d service(s).", updatesAvailable)
+				metric := runUpdatesWithNotifications(filter)
+				metrics.RegisterScan(metric)
+			}
 		})
 
 	if err != nil {
@@ -436,7 +445,7 @@ func runChecksOnSchedule(c *cobra.Command, filter t.Filter, filtering string, lo
 	return nil
 }
 
-func runCheckForUpdates(filter t.Filter) {
+func runCheckForUpdates(filter t.Filter) (int, error) {
 	updateParams := t.UpdateParams{
 		Filter:          filter,
 		Cleanup:         cleanup,
@@ -447,20 +456,18 @@ func runCheckForUpdates(filter t.Filter) {
 		RollingRestart:  rollingRestart,
 		LabelPrecedence: labelPrecedence,
 	}
-	// Check for updates from registry first
-	if updateAvailable, err := actions.CheckForNewUpdateFromRegistry(client, updateParams); err != nil {
-		log.Error(err)
-	} else if updateAvailable {
-		log.Info("Updates available from registry. Attempting to pull updates now...")
-		err := actions.DownloadUpdate(client, updateParams)
-		if err != nil {
-			log.Error(err)
-		}
-	} else if !updateAvailable {
-		log.Debug("Updates not available from upstream")
-	} else {
-		log.Debug("Unable to check for update from upstream registry")
+	availableCount, names, err := actions.CountUpdatesAvailable(client, updateParams)
+	if err != nil {
+		return 0, err
 	}
+
+	if availableCount == 0 {
+		log.Info("No services with updates available.")
+		return 0, nil
+	}
+
+	log.Infof("%d service(s) with updates available: %s", availableCount, strings.Join(names, ", "))
+	return availableCount, nil
 }
 
 func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {

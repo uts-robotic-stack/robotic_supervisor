@@ -2,6 +2,7 @@ package actions
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/dkhoanguyen/watchtower/internal/util"
 	"github.com/dkhoanguyen/watchtower/pkg/container"
@@ -107,6 +108,36 @@ func CheckForNewUpdateFromRegistry(client container.Client, params types.UpdateP
 		}
 	}
 	return false, nil
+}
+
+// CountUpdatesAvailable checks all filtered containers and returns how many
+// have updates available, along with their names.
+func CountUpdatesAvailable(client container.Client, params types.UpdateParams) (int, []string, error) {
+	log.Debug("Checking containers for updates availability")
+	containers, err := client.ListContainers(params.Filter)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	count := 0
+	names := make([]string, 0, len(containers))
+	for _, targetContainer := range containers {
+		match, err := client.CheckImageDigest(targetContainer)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"container": targetContainer.Name(),
+				"image":     targetContainer.ImageName(),
+			}).Warnf("Failed to check image digest: %v", err)
+			continue
+		}
+
+		if !match {
+			count++
+			names = append(names, strings.TrimPrefix(targetContainer.Name(), "/"))
+		}
+	}
+
+	return count, names, nil
 }
 
 func DownloadUpdate(client container.Client, params types.UpdateParams) error {

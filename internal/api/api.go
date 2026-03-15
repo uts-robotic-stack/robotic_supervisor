@@ -26,6 +26,8 @@ func SetRoutes(router *gin.Engine,
 		{
 			watchtowerSubgroup.POST("/update", watchtowerHandler.HandlePostUpdate)
 			watchtowerSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
+			watchtowerSubgroup.GET("/auto-update", watchtowerHandler.HandleAutoUpdateStatus)
+			watchtowerSubgroup.POST("/auto-update", watchtowerHandler.HandleAutoUpdateToggle)
 			watchtowerSubgroup.GET("/log-stream", containerHandler.HandleWSLogs)
 			watchtowerSubgroup.GET("/log", containerHandler.HandlerContainerLogs)
 			watchtowerSubgroup.POST("/load", containerHandler.HandleContainerCreate)
@@ -41,6 +43,8 @@ func SetRoutes(router *gin.Engine,
 		{
 			updatesSubgroup.POST("/apply", watchtowerHandler.HandlePostUpdate)
 			updatesSubgroup.POST("/download", watchtowerHandler.HandlePostDownload)
+			updatesSubgroup.GET("/auto-update", watchtowerHandler.HandleAutoUpdateStatus)
+			updatesSubgroup.POST("/auto-update", watchtowerHandler.HandleAutoUpdateToggle)
 		}
 
 		containersSubgroup := v1.Group("/containers")
